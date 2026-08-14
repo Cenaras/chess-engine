@@ -113,7 +113,7 @@ func parseFen(fen string) game.Position {
 		file := enPassantTarget[0]
 		rank := enPassantTarget[1]
 		if file < 'a' || file > 'h' || rank < '1' || rank > '8' {
-			panic(fmt.Sprintf("invalid FEN en passant square: %s", fen))
+			panic(fmt.Sprintf("invalid fen en passant square: %s", fen))
 		}
 		fileIndex := int(file - 'a')
 		rankIndex := int('8' - rank)

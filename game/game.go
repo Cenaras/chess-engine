@@ -1,5 +1,7 @@
 package game
 
+import "fmt"
+
 type Piece uint8
 
 const (
@@ -104,6 +106,32 @@ func IsLegalRank(rank int) bool {
 
 func IsLegalFile(file int) bool {
 	return file >= 0 && file < 8
+}
+
+func IsStartPawnRank(square Square, color Player) bool {
+	if color == WHITE.Player() {
+		return square/8 == 1
+	}
+	if color == BLACK.Player() {
+		return square/8 == 6
+	}
+	panic(fmt.Sprintf("Invalid color for player: %d", color))
+}
+
+func MoveDirection(square Square, direction Direction) (Square, error) {
+	startRank, startFile := SquareToRankFile(square)
+	newRank := startRank + direction.Rank
+	newFile := startFile + direction.File
+
+	// Illegal direction for this piece
+	if !IsLegalRank(newRank) || !IsLegalFile(newFile) {
+		return 0, fmt.Errorf(
+			"moving square %d by direction %+v goes off the board",
+			square,
+			direction)
+	}
+	// Target square is within the board
+	return RankFileToSquare(newRank, newFile), nil
 }
 
 func IsSameColor(c1 Player, c2 Player) bool {

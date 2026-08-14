@@ -11,6 +11,13 @@ var slidingDirectionOffsets = [...]Direction{
 	{1, -1}, {1, 1}, {-1, 1}, {-1, -1},
 }
 
+// var pawnMoveOffsets = [...]Direction{
+// 	// White Advance, White Capture left, White Capture Right
+// 	{1,0},  {1, -1}, {1, 1},
+// 	// Black Advance, Black Capture left, Black Capture Right
+// 	{1,0},  {1, -1}, {1, 1},
+// }
+
 // TODO: Precompute target squares for every square
 var knightOffsets = [...]Direction{
 	// NNW, NNE,
@@ -39,32 +46,62 @@ func pseudoLegalmove(position *Position) []Move {
 
 		if pieceType == KNIGHT {
 			moves = genKnightMoves(startSquare, pieceColor, moves, position)
+			fmt.Printf("Pseudo-legal moves after knight: %d\n", len(moves))
+		}
+
+		if pieceType == PAWN {
+			// TODO
+			moves = genPawnMoves(startSquare, pieceColor, moves, position)
+			fmt.Printf("Pseudo-legal moves after pawn: %d\n", len(moves))
 		}
 	}
 
 	return moves
 }
 
-// Appends all pseudo-legal knight moves to the move list
-func genKnightMoves(startSquare Square, color Player, moves []Move, position *Position) []Move {
-	startRank, startFile := SquareToRankFile(startSquare)
+func genPawnMoves(startSquare Square, color Player, moves []Move, position *Position) []Move {
+	var forwards, doubleForwards Direction
+	if color == WHITE.Player() {
+		forwards = Direction{1, 0}
+		doubleForwards = Direction{2, 0}
+	} else {
+		forwards = Direction{-1, 0}
+		doubleForwards = Direction{-2, 0}
+	}
 
-	fmt.Printf("startRank, startFile: (%d, %d)\n", startRank, startFile)
-
-	// ensure that the knight doesn't move off the board
-	for _, move := range knightOffsets {
-		newRank := startRank + move.Rank
-		newFile := startFile + move.File
-
-		// check that the piece is within bounds
-		if !IsLegalRank(newRank) || !IsLegalFile(newFile) {
-			continue
+	// Single forwards move
+	singleMoveSquare, err := MoveDirection(startSquare, forwards)
+	if err != nil {
+		panic(err) // should be impossible: pawn would have been promoted
+	}
+	if singleMoveTargetPiece, _ := position.GetPieceAt(singleMoveSquare); singleMoveTargetPiece == NONE {
+		moves = append(moves, Move{startSquare, singleMoveSquare})
+		// Also look for double pawn moves here, since no piece was infront
+		if IsStartPawnRank(startSquare, color) {
+			doubleMoveSquare, err := MoveDirection(startSquare, doubleForwards)
+			if err != nil {
+				panic(err) // should never be out of bounds for a 2x move. Just in case...
+			}
+			if doubleMoveTargetPiece, _ := position.GetPieceAt(doubleMoveSquare); doubleMoveTargetPiece == NONE {
+				moves = append(moves, Move{startSquare, doubleMoveSquare})
+			}
 		}
 
-		targetSquare := RankFileToSquare(newRank, newFile)
+	}
+	return moves
+}
+
+// Appends all pseudo-legal knight moves to the move list
+func genKnightMoves(startSquare Square, color Player, moves []Move, position *Position) []Move {
+	// ensure that the knight doesn't move off the board
+	for _, direction := range knightOffsets {
+
+		targetSquare, err := MoveDirection(startSquare, direction)
+		if err != nil {
+			continue
+		}
 		_, targetColor := position.GetPieceAt(targetSquare)
 		if !IsSameColor(color, targetColor) {
-			fmt.Printf("newRank, newFile: (%d, %d)\n", newRank, newFile)
 			moves = append(moves, Move{startSquare, targetSquare})
 		}
 
@@ -77,5 +114,5 @@ func GenerateMove(position *Position) {
 	// generate all pseudo legal moves, play them and check if our king is capturable.
 	// optimize later: attack maps etc...
 	pseudo := pseudoLegalmove(position)
-	fmt.Printf("Pseudo-legal knight moves: %d", len(pseudo))
+	fmt.Printf("Pseudo-legal moves: %d\n", len(pseudo))
 }
