@@ -72,8 +72,8 @@ type Square int // 0..64
 type Position struct {
 	Board                    [64]Piece
 	PlayerToMove             Player
-	CastleRights             CastleRights
-	PossibleEnPassantCapture Square // todo: representable using 4bits. Using the playerToMove to indicate the rank and just store the file
+	CastleRights             CastleRights // 0001
+	PossibleEnPassantCapture Square       // todo: representable using 4bits. Using the playerToMove to indicate the rank and just store the file
 }
 
 // PieceType, Color

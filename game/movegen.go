@@ -37,19 +37,61 @@ func pseudoLegalmove(position *Position) []Move {
 			continue
 		}
 
-		if pieceType == KNIGHT {
+		switch pieceType {
+		case KNIGHT:
 			moves = genKnightMoves(startSquare, pieceColor, moves, position)
-		}
-
-		if pieceType == PAWN {
+		case PAWN:
 			moves = genPawnMoves(startSquare, pieceColor, moves, position)
-		}
-
-		if pieceType == KING {
-
+		case KING:
+			moves = genKingMoves(startSquare, pieceColor, moves, position)
 		}
 	}
+	return moves
+}
 
+func genSlidingPieceMoves(startSquare Square, color Player, moves []Move, position *Position) []Move {
+	return moves
+}
+
+func genKingMoves(startSquare Square, color Player, moves []Move, position *Position) []Move {
+	var directions = [...]Direction{
+		{1, 0}, {1, 1}, {1, -1},
+		{0, 1}, {0, -1},
+		{-1, 0}, {-1, 1}, {-1, -1},
+	}
+
+	// Regular moves
+	for _, direction := range directions {
+		targetSquare, err := MoveDirection(startSquare, direction)
+		if err != nil {
+			continue
+		}
+		targetPiece, targetColor := position.GetPieceAt(targetSquare)
+		// Empty or opponent piece
+		if targetPiece == NONE || !IsSameColor(targetColor, color) {
+			moves = append(moves, Move{startSquare, targetSquare})
+		}
+
+		// Castle moves:
+		// TODO, indicate in the Move that it is a castle, or check
+		//	whenever king makes a move?
+		kingSide := WhiteKingSide
+		queenSide := WhiteQueenSide
+
+		if color == BLACK.Player() {
+			kingSide = BlackKingSide
+			queenSide = BlackQueenSide
+		}
+
+		addCastleMove := func(side CastleRights, direction int) {
+			if position.CastleRights&side != 0 {
+				// since castling is valid we dont need to check if OOB
+				moves = append(moves, Move{startSquare, startSquare + Square(direction)})
+			}
+		}
+		addCastleMove(kingSide, 2)
+		addCastleMove(queenSide, -2)
+	}
 	return moves
 }
 
