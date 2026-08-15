@@ -119,14 +119,23 @@ func genKingMoves(startSquare Square, color Player, moves []Move, position *Posi
 			queenSide = BlackQueenSide
 		}
 
-		addCastleMove := func(side CastleRights, direction int, sideFlag MoveFlag) {
-			if position.CastleRights&side != 0 {
-				// since castling is valid we dont need to check if OOB
-				moves = append(moves, Move{startSquare, startSquare + Square(direction), sideFlag})
+		addCastleMove := func(side CastleRights, direction int, sideFlag MoveFlag, emptyOffsets ...int) {
+			// Check if we are allowed to castle
+			if position.CastleRights&side == 0 {
+				return
 			}
+			// Ensure no piece is blocking the castle
+			for _, offset := range emptyOffsets {
+				if position.GetPieceAt(startSquare+Square(offset)) != NONE {
+					return
+				}
+			}
+			// since castling is valid we dont need to check if OOB
+			targetSquare := Square(int(startSquare) + direction)
+			moves = append(moves, Move{startSquare, targetSquare, sideFlag})
 		}
-		addCastleMove(kingSide, 2, KingCastle)
-		addCastleMove(queenSide, -2, QueenCastle)
+		addCastleMove(kingSide, 2, KingCastle, 1, 2)
+		addCastleMove(queenSide, -2, QueenCastle, -1, -2, -3)
 	}
 	return moves
 }
@@ -229,7 +238,11 @@ func MakeMove(p *Position, move Move) UndoMoveState {
 	capturedPiece := p.GetPieceAt(to)
 
 	// capture the current board state so UnmakeMove can restore it
-	undoMoveState := UndoMoveState{capturedPiece, p.CastleRights, p.PossibleEnPassantCapture}
+	undoMoveState := UndoMoveState{
+		CapturedPiece:            capturedPiece,
+		CastleRights:             p.CastleRights,
+		PossibleEnPassantCapture: p.PossibleEnPassantCapture,
+	}
 
 	// Move pieces around
 	p.SetPieceAt(movingPiece, to)
@@ -257,19 +270,71 @@ func MakeMove(p *Position, move Move) UndoMoveState {
 		}
 		p.SetPieceAt(NONE, capturedEnPassantSquare)
 
-	case KingCastle, QueenCastle:
-		// clear the bits related to castling: &^ clears the bit
-		if movingPiece.Player() == WHITE.Player() {
-			p.CastleRights &^= WhiteKingSide | WhiteQueenSide
-		} else {
-			p.CastleRights &^= BlackKingSide | BlackQueenSide
-		}
+	// Move the rook -- king has already moved: (flags are updated below)
+	case KingCastle:
+		rookFrom := to + 1
+		rookTo := to - 1
+		rook := p.GetPieceAt(rookFrom)
+		p.SetPieceAt(rook, rookTo)
+		p.SetPieceAt(NONE, rookFrom)
+
+	case QueenCastle:
+		rookFrom := to - 2
+		rookTo := to - 1
+		rook := p.GetPieceAt(rookFrom)
+		p.SetPieceAt(rook, rookTo)
+		p.SetPieceAt(NONE, rookFrom)
+
 	// TODO: Allow promotions as well!
 	case PromoteBishop:
 	case PromoteKnight:
 	case PromoteRook:
 	case PromoteQueen:
 	}
+
+	// Update castling rights when king/rook moves
+	switch movingPiece.Type() {
+	case KING:
+		if movingPiece.Player() == WHITE.Player() {
+			p.CastleRights &^= WhiteKingSide | WhiteQueenSide
+		} else {
+			p.CastleRights &^= BlackKingSide | BlackQueenSide
+		}
+	case ROOK:
+		switch from {
+		// A1
+		case 0:
+			p.CastleRights &^= WhiteQueenSide
+		// H1
+		case 7:
+			p.CastleRights &^= WhiteKingSide
+		// A8
+		case 56:
+			p.CastleRights &^= BlackQueenSide
+		// H8
+		case 63:
+			p.CastleRights &^= BlackKingSide
+		}
+	}
+
+	if capturedPiece.Type() == ROOK {
+		switch to {
+		// A1
+		case 0:
+			p.CastleRights &^= WhiteQueenSide
+		// H1
+		case 7:
+			p.CastleRights &^= WhiteKingSide
+		// A8
+		case 56:
+			p.CastleRights &^= BlackQueenSide
+		// H8
+		case 63:
+			p.CastleRights &^= BlackKingSide
+		}
+	}
+
+	// TODO: Flip player to move
 
 	return undoMoveState
 
