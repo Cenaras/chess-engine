@@ -46,13 +46,14 @@ func pseudoLegalmove(position *Position) []Move {
 
 		if pieceType == KNIGHT {
 			moves = genKnightMoves(startSquare, pieceColor, moves, position)
-			fmt.Printf("Pseudo-legal moves after knight: %d\n", len(moves))
 		}
 
 		if pieceType == PAWN {
-			// TODO
 			moves = genPawnMoves(startSquare, pieceColor, moves, position)
-			fmt.Printf("Pseudo-legal moves after pawn: %d\n", len(moves))
+		}
+
+		if pieceType == KING {
+
 		}
 	}
 
@@ -86,8 +87,34 @@ func genPawnMoves(startSquare Square, color Player, moves []Move, position *Posi
 				moves = append(moves, Move{startSquare, doubleMoveSquare})
 			}
 		}
-
 	}
+	var attackLeft, attackRight Direction
+	if color == WHITE.Player() {
+		attackLeft = Direction{1, -1}
+		attackRight = Direction{1, -1}
+	} else {
+		attackLeft = Direction{-1, -1}
+		attackRight = Direction{-1, 1}
+	}
+
+	attackSide := func(square Square, direction Direction) []Move {
+		squareToAttack, err := MoveDirection(square, direction)
+		if err != nil {
+			// check for normal attack
+			pieceToAttack, pieceColor := position.GetPieceAt(squareToAttack)
+			if pieceToAttack != NONE && !IsSameColor(color, pieceColor) {
+				moves = append(moves, Move{startSquare, squareToAttack})
+			}
+			// check for en-passant
+			if pieceToAttack == NONE && squareToAttack == position.PossibleEnPassantCapture {
+				moves = append(moves, Move{startSquare, squareToAttack})
+			}
+		}
+		return moves
+	}
+
+	moves = attackSide(startSquare, attackLeft)
+	moves = attackSide(startSquare, attackRight)
 	return moves
 }
 
