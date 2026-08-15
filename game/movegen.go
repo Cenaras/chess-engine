@@ -4,9 +4,11 @@ import (
 	"fmt"
 )
 
-var slidingDirectionOffsets = [...]Direction{
+var rookDirections = []Direction{
 	// S, N, W, E
 	{-1, 0}, {1, 0}, {0, -1}, {0, 1},
+}
+var bishopDirections = []Direction{
 	// NW, NE,  SE, SW
 	{1, -1}, {1, 1}, {-1, 1}, {-1, -1},
 }
@@ -44,12 +46,49 @@ func pseudoLegalmove(position *Position) []Move {
 			moves = genPawnMoves(startSquare, pieceColor, moves, position)
 		case KING:
 			moves = genKingMoves(startSquare, pieceColor, moves, position)
+		case BISHOP:
+			moves = genSlidingPieceMoves(startSquare, pieceColor, moves, position, bishopDirections)
+		case ROOK:
+			moves = genSlidingPieceMoves(startSquare, pieceColor, moves, position, rookDirections)
+		case QUEEN:
+			moves = genSlidingPieceMoves(startSquare, pieceColor, moves, position, rookDirections)
+			moves = genSlidingPieceMoves(startSquare, pieceColor, moves, position, bishopDirections)
 		}
 	}
 	return moves
 }
 
-func genSlidingPieceMoves(startSquare Square, color Player, moves []Move, position *Position) []Move {
+func genSlidingPieceMoves(startSquare Square, color Player, moves []Move, position *Position, directions []Direction) []Move {
+	for _, direction := range directions {
+		currentSquare := startSquare
+		for {
+			targetSquare, err := MoveDirection(currentSquare, direction)
+			// Moving further in this direction leaves the board
+			if err != nil {
+				break
+			}
+
+			// Get piece at targetSquare
+			pieceType, pieceColor := position.GetPieceAt(targetSquare)
+			// Friendly piece blocks us
+			if pieceType != NONE && pieceColor == color {
+				break
+			}
+
+			// Square is empty
+			moves = append(moves, Move{currentSquare, targetSquare})
+
+			// If we captured a piece, break as well
+			if pieceType != NONE {
+				break
+			}
+
+			// Continue search from new square
+			currentSquare = targetSquare
+
+		}
+	}
+
 	return moves
 }
 

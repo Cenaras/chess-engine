@@ -78,7 +78,7 @@ type Position struct {
 
 // PieceType, Color
 func (p Position) GetPieceAt(square Square) (Piece, Player) {
-	piece := p.Board[square]
+	piece := p.board[square]
 	return piece.Type(), piece.Player()
 }
 
