@@ -4,6 +4,14 @@ import "fmt"
 
 type Piece uint8
 
+func (p Piece) Type() Piece {
+	return p & TypeMask
+}
+
+func (p Piece) Player() Player {
+	return Player(p & ColorMask)
+}
+
 const (
 	NONE   Piece = 0  // 0b00000
 	PAWN   Piece = 1  // 0b00001
@@ -23,14 +31,6 @@ const (
 )
 
 type Player uint8
-
-func (p Piece) Player() Player {
-	return Player(p & ColorMask)
-}
-
-func (p Piece) Type() Piece {
-	return Piece(p & TypeMask)
-}
 
 type CastleRights uint8
 
@@ -78,16 +78,14 @@ type Position struct {
 	PossibleEnPassantCapture Square       // todo: representable using 4bits. Using the playerToMove to indicate the rank and just store the file
 }
 
-// func (p Position) GetPieceAt(square Square) Piece {
-// 	return piece := p.Board[square]
+func (p Position) GetPieceAt(square Square) Piece {
+	return p.Board[square]
+}
+
+// func (p Position) GetPieceAt(square Square) (Piece, Player) {
+// 	piece := p.Board[square]
 // 	return piece.Type(), piece.Player()
 // }
-
-// PieceType, Color
-func (p Position) GetPieceAt(square Square) (Piece, Player) {
-	piece := p.Board[square]
-	return piece.Type(), piece.Player()
-}
 
 func (p Position) SetPieceAt(piece Piece, square Square) {
 	p.Board[square] = piece

@@ -28,7 +28,9 @@ func pseudoLegalmove(position *Position) []Move {
 	board := position.Board
 	for idx := range board {
 		startSquare := Square(idx)
-		pieceType, pieceColor := position.GetPieceAt(startSquare)
+		piece := position.GetPieceAt(startSquare)
+		pieceType := piece.Type()
+		pieceColor := piece.Player()
 
 		// No piece or wrong piece color
 		if pieceType == NONE || pieceColor != position.PlayerToMove {
@@ -65,7 +67,9 @@ func genSlidingPieceMoves(startSquare Square, color Player, moves []Move, positi
 			}
 
 			// Get piece at targetSquare
-			pieceType, pieceColor := position.GetPieceAt(targetSquare)
+			piece := position.GetPieceAt(targetSquare)
+			pieceType := piece.Type()
+			pieceColor := piece.Player()
 			// Friendly piece blocks us
 			if pieceType != NONE && pieceColor == color {
 				break
@@ -99,7 +103,8 @@ func genKingMoves(startSquare Square, color Player, moves []Move, position *Posi
 		if err != nil {
 			continue
 		}
-		targetPiece, targetColor := position.GetPieceAt(targetSquare)
+		targetPiece := position.GetPieceAt(targetSquare)
+		targetColor := targetPiece.Player()
 		// Empty or opponent piece
 		if targetPiece == NONE || !IsSameColor(targetColor, color) {
 			moves = append(moves, Move{startSquare, targetSquare, NormalMove})
@@ -141,7 +146,9 @@ func genPawnMoves(startSquare Square, color Player, moves []Move, position *Posi
 	if err != nil {
 		panic(err) // should be impossible: pawn would have been promoted
 	}
-	if singleMoveTargetPiece, _ := position.GetPieceAt(singleMoveSquare); singleMoveTargetPiece == NONE {
+
+	singleMoveTargetPiece := position.GetPieceAt(singleMoveSquare)
+	if singleMoveTargetPiece == NONE {
 		moves = append(moves, Move{startSquare, singleMoveSquare, NormalMove})
 		// Also look for double pawn moves here, since no piece was infront
 		if IsStartPawnRank(startSquare, color) {
@@ -149,7 +156,8 @@ func genPawnMoves(startSquare Square, color Player, moves []Move, position *Posi
 			if err != nil {
 				panic(err) // should never be out of bounds for a 2x move. Just in case...
 			}
-			if doubleMoveTargetPiece, _ := position.GetPieceAt(doubleMoveSquare); doubleMoveTargetPiece == NONE {
+			doubleMoveTargetPiece := position.GetPieceAt(doubleMoveSquare)
+			if doubleMoveTargetPiece == NONE {
 				moves = append(moves, Move{startSquare, doubleMoveSquare, DoublePawnPush})
 			}
 		}
@@ -167,12 +175,13 @@ func genPawnMoves(startSquare Square, color Player, moves []Move, position *Posi
 		squareToAttack, err := MoveDirection(square, direction)
 		if err != nil {
 			// check for normal attack
-			pieceToAttack, pieceColor := position.GetPieceAt(squareToAttack)
-			if pieceToAttack != NONE && !IsSameColor(color, pieceColor) {
+			piece := position.GetPieceAt(squareToAttack)
+			pieceColor := piece.Player()
+			if piece != NONE && !IsSameColor(color, pieceColor) {
 				moves = append(moves, Move{startSquare, squareToAttack, NormalMove})
 			}
 			// check for en-passant
-			if pieceToAttack == NONE && squareToAttack == position.PossibleEnPassantCapture {
+			if piece == NONE && squareToAttack == position.PossibleEnPassantCapture {
 				moves = append(moves, Move{startSquare, squareToAttack, EnPassantCapture})
 			}
 		}
@@ -193,7 +202,8 @@ func genKnightMoves(startSquare Square, color Player, moves []Move, position *Po
 		if err != nil {
 			continue
 		}
-		_, targetColor := position.GetPieceAt(targetSquare)
+		piece := position.GetPieceAt(targetSquare)
+		targetColor := piece.Player()
 		if !IsSameColor(color, targetColor) {
 			moves = append(moves, Move{startSquare, targetSquare, NormalMove})
 		}
@@ -214,8 +224,9 @@ func MakeMove(p *Position, move Move) UndoMoveState {
 	from := move.From
 	to := move.To
 	moveFlag := move.Flag
-	movingPiece, color := p.GetPieceAt(from)
-	capturedPiece, _ := p.GetPieceAt(to)
+
+	movingPiece := p.GetPieceAt(from)
+	capturedPiece := p.GetPieceAt(to)
 
 	// capture the current board state so UnmakeMove can restore it
 	undoMoveState := UndoMoveState{capturedPiece, p.CastleRights, p.PossibleEnPassantCapture}
@@ -233,7 +244,7 @@ func MakeMove(p *Position, move Move) UndoMoveState {
 	case DoublePawnPush:
 		// the square behind the pawn is now a possible en-passant capture
 		enPassantCaptureSquare := to - 8
-		if color == BLACK.Player() {
+		if movingPiece.Player() == BLACK.Player() {
 			enPassantCaptureSquare = to + 8
 		}
 		p.PossibleEnPassantCapture = enPassantCaptureSquare
@@ -241,14 +252,14 @@ func MakeMove(p *Position, move Move) UndoMoveState {
 		// if capturing en-passant, remove the piece behind the destination square...
 		// NOTE: UnmakeMove is responsible for reinstating the captured pawn
 		capturedEnPassantSquare := to - 8
-		if color == BLACK.Player() {
+		if movingPiece.Player() == BLACK.Player() {
 			capturedEnPassantSquare = to + 8
 		}
 		p.SetPieceAt(NONE, capturedEnPassantSquare)
 
 	case KingCastle, QueenCastle:
 		// clear the bits related to castling: &^ clears the bit
-		if color == WHITE.Player() {
+		if movingPiece.Player() == WHITE.Player() {
 			p.CastleRights &^= WhiteKingSide | WhiteQueenSide
 		} else {
 			p.CastleRights &^= BlackKingSide | BlackQueenSide
