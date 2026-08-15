@@ -5,11 +5,9 @@ import (
 	"chess/game"
 )
 
-const USE_DEFAULT_FEN = true
-
 func main() {
-	position := fen.LoadFenPosition(USE_DEFAULT_FEN)
-	game.GenerateMove(&position)
+	position := fen.LoadFenPosition(fen.StartingFEN)
+	game.GenerateMoves(&position)
 }
 
 // TODO: FEN Parser and Board representation

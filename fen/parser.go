@@ -7,13 +7,9 @@ import (
 	"strings"
 )
 
-const startingFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0"
+const StartingFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
-func LoadFenPosition(startPos bool) game.Position {
-	var fen string = startingFen
-	if !startPos {
-		fen = readFile("TODO")
-	}
+func LoadFenPosition(fen string) game.Position {
 	position := parseFen(fen)
 	return position
 }

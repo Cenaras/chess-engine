@@ -11,13 +11,6 @@ var slidingDirectionOffsets = [...]Direction{
 	{1, -1}, {1, 1}, {-1, 1}, {-1, -1},
 }
 
-// var pawnMoveOffsets = [...]Direction{
-// 	// White Advance, White Capture left, White Capture Right
-// 	{1,0},  {1, -1}, {1, 1},
-// 	// Black Advance, Black Capture left, Black Capture Right
-// 	{1,0},  {1, -1}, {1, 1},
-// }
-
 // TODO: Precompute target squares for every square
 var knightOffsets = [...]Direction{
 	// NNW, NNE,
@@ -137,9 +130,21 @@ func genKnightMoves(startSquare Square, color Player, moves []Move, position *Po
 }
 
 // Generate all legal moves for the position
-func GenerateMove(position *Position) {
+func GenerateMoves(position *Position) []Move {
 	// generate all pseudo legal moves, play them and check if our king is capturable.
 	// optimize later: attack maps etc...
 	pseudo := pseudoLegalmove(position)
 	fmt.Printf("Pseudo-legal moves: %d\n", len(pseudo))
+
+	return pseudo
+}
+
+func MakeMove(move Move) {
+	// TODO: make the move
+}
+
+func UnmakeMove(move Move) {
+	// TODO: unmake the move.
+	// Remember to undo any side-effects making the move had
+	// such as en-passant squares etc
 }
