@@ -76,7 +76,7 @@ func genSlidingPieceMoves(startSquare Square, color Player, moves []Move, positi
 			}
 
 			// Square is empty
-			moves = append(moves, Move{currentSquare, targetSquare, NormalMove})
+			moves = append(moves, Move{startSquare, targetSquare, NormalMove})
 
 			// If we captured a piece, break as well
 			if pieceType != NONE {
@@ -109,34 +109,34 @@ func genKingMoves(startSquare Square, color Player, moves []Move, position *Posi
 		if targetPiece == NONE || !IsSameColor(targetColor, color) {
 			moves = append(moves, Move{startSquare, targetSquare, NormalMove})
 		}
+	}
 
-		// Castle moves:
-		kingSide := WhiteKingSide
-		queenSide := WhiteQueenSide
+	// Castle moves:
+	kingSide := WhiteKingSide
+	queenSide := WhiteQueenSide
 
-		if color == BLACK.Player() {
-			kingSide = BlackKingSide
-			queenSide = BlackQueenSide
+	if color == BLACK.Player() {
+		kingSide = BlackKingSide
+		queenSide = BlackQueenSide
+	}
+
+	addCastleMove := func(side CastleRights, direction int, sideFlag MoveFlag, emptyOffsets ...int) {
+		// Check if we are allowed to castle
+		if position.CastleRights&side == 0 {
+			return
 		}
-
-		addCastleMove := func(side CastleRights, direction int, sideFlag MoveFlag, emptyOffsets ...int) {
-			// Check if we are allowed to castle
-			if position.CastleRights&side == 0 {
+		// Ensure no piece is blocking the castle
+		for _, offset := range emptyOffsets {
+			if position.GetPieceAt(Square(int(startSquare)+offset)) != NONE {
 				return
 			}
-			// Ensure no piece is blocking the castle
-			for _, offset := range emptyOffsets {
-				if position.GetPieceAt(startSquare+Square(offset)) != NONE {
-					return
-				}
-			}
-			// since castling is valid we dont need to check if OOB
-			targetSquare := Square(int(startSquare) + direction)
-			moves = append(moves, Move{startSquare, targetSquare, sideFlag})
 		}
-		addCastleMove(kingSide, 2, KingCastle, 1, 2)
-		addCastleMove(queenSide, -2, QueenCastle, -1, -2, -3)
+		// since castling is valid we dont need to check if OOB
+		targetSquare := Square(int(startSquare) + direction)
+		moves = append(moves, Move{startSquare, targetSquare, sideFlag})
 	}
+	addCastleMove(kingSide, 2, KingCastle, 1, 2)
+	addCastleMove(queenSide, -2, QueenCastle, -1, -2, -3)
 	return moves
 }
 
@@ -174,7 +174,7 @@ func genPawnMoves(startSquare Square, color Player, moves []Move, position *Posi
 	var attackLeft, attackRight Direction
 	if color == WHITE.Player() {
 		attackLeft = Direction{1, -1}
-		attackRight = Direction{1, -1}
+		attackRight = Direction{1, 1}
 	} else {
 		attackLeft = Direction{-1, -1}
 		attackRight = Direction{-1, 1}
@@ -183,16 +183,17 @@ func genPawnMoves(startSquare Square, color Player, moves []Move, position *Posi
 	attackSide := func(square Square, direction Direction) []Move {
 		squareToAttack, err := MoveDirection(square, direction)
 		if err != nil {
-			// check for normal attack
-			piece := position.GetPieceAt(squareToAttack)
-			pieceColor := piece.Player()
-			if piece != NONE && !IsSameColor(color, pieceColor) {
-				moves = append(moves, Move{startSquare, squareToAttack, NormalMove})
-			}
-			// check for en-passant
-			if piece == NONE && squareToAttack == position.PossibleEnPassantCapture {
-				moves = append(moves, Move{startSquare, squareToAttack, EnPassantCapture})
-			}
+			return moves
+		}
+		// check for normal attack
+		piece := position.GetPieceAt(squareToAttack)
+		pieceColor := piece.Player()
+		if piece != NONE && !IsSameColor(color, pieceColor) {
+			moves = append(moves, Move{startSquare, squareToAttack, NormalMove})
+		}
+		// check for en-passant
+		if piece == NONE && squareToAttack == position.PossibleEnPassantCapture {
+			moves = append(moves, Move{startSquare, squareToAttack, EnPassantCapture})
 		}
 		return moves
 	}
@@ -280,7 +281,7 @@ func MakeMove(p *Position, move Move) UndoMoveState {
 
 	case QueenCastle:
 		rookFrom := to - 2
-		rookTo := to - 1
+		rookTo := to + 1
 		rook := p.GetPieceAt(rookFrom)
 		p.SetPieceAt(rook, rookTo)
 		p.SetPieceAt(NONE, rookFrom)
