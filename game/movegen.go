@@ -106,8 +106,6 @@ func genKingMoves(startSquare Square, color Player, moves []Move, position *Posi
 		}
 
 		// Castle moves:
-		// TODO, indicate in the Move that it is a castle, or check
-		//	whenever king makes a move?
 		kingSide := WhiteKingSide
 		queenSide := WhiteQueenSide
 
@@ -213,35 +211,63 @@ func GenerateMoves(position *Position) []Move {
 }
 
 func MakeMove(p *Position, move Move) UndoMoveState {
-	// TODO: make the move
-
 	from := move.From
 	to := move.To
 	moveFlag := move.Flag
-	piece, _ := p.GetPieceAt(from)
+	movingPiece, color := p.GetPieceAt(from)
+	capturedPiece, _ := p.GetPieceAt(to)
+
+	// capture the current board state so UnmakeMove can restore it
+	undoMoveState := UndoMoveState{capturedPiece, p.CastleRights, p.PossibleEnPassantCapture}
+
 	// Move pieces around
-	p.SetPieceAt(piece, to)
+	p.SetPieceAt(movingPiece, to)
 	p.SetPieceAt(NONE, from)
 
+	// TODO: handle special operations -- first rook/king move invalidates castle etc
+
 	// Update the position state
+	// Clear the en-passant move (will be reset if the move was double pawn)
+	p.PossibleEnPassantCapture = NoSquare
 	switch moveFlag {
 	case DoublePawnPush:
+		// the square behind the pawn is now a possible en-passant capture
+		enPassantCaptureSquare := to - 8
+		if color == BLACK.Player() {
+			enPassantCaptureSquare = to + 8
+		}
+		p.PossibleEnPassantCapture = enPassantCaptureSquare
 	case EnPassantCapture:
-	case KingCastle:
-	case QueenCastle:
+		// if capturing en-passant, remove the piece behind the destination square...
+		// NOTE: UnmakeMove is responsible for reinstating the captured pawn
+		capturedEnPassantSquare := to - 8
+		if color == BLACK.Player() {
+			capturedEnPassantSquare = to + 8
+		}
+		p.SetPieceAt(NONE, capturedEnPassantSquare)
+
+	case KingCastle, QueenCastle:
+		// clear the bits related to castling: &^ clears the bit
+		if color == WHITE.Player() {
+			p.CastleRights &^= WhiteKingSide | WhiteQueenSide
+		} else {
+			p.CastleRights &^= BlackKingSide | BlackQueenSide
+		}
+	// TODO: Allow promotions as well!
 	case PromoteBishop:
 	case PromoteKnight:
 	case PromoteRook:
 	case PromoteQueen:
 	}
 
-	// TODO: ...
-	return UndoMoveState{}
+	return undoMoveState
 
 }
 
 func UnmakeMove(p *Position, move Move, undo UndoMoveState) {
+
 	// TODO: unmake the move.
 	// Remember to undo any side-effects making the move had
 	// such as en-passant squares etc
+	// in particular, if the capture is an EnPassantCapture, reinstate the captured piece
 }

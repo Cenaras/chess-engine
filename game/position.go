@@ -67,7 +67,8 @@ const (
 	RANK_8
 )
 
-type Square int // 0..64
+type Square uint8 // 0..64
+const NoSquare Square = 64
 
 // TODO: Encapsulate to avoid exposing datatype?
 type Position struct {
@@ -76,6 +77,11 @@ type Position struct {
 	CastleRights             CastleRights // 0001
 	PossibleEnPassantCapture Square       // todo: representable using 4bits. Using the playerToMove to indicate the rank and just store the file
 }
+
+// func (p Position) GetPieceAt(square Square) Piece {
+// 	return piece := p.Board[square]
+// 	return piece.Type(), piece.Player()
+// }
 
 // PieceType, Color
 func (p Position) GetPieceAt(square Square) (Piece, Player) {
@@ -107,8 +113,11 @@ type Move struct {
 	Flag MoveFlag
 }
 
-// TODO: Populate
-type UndoMoveState struct{}
+type UndoMoveState struct {
+	CapturedPiece            Piece
+	CastleRights             CastleRights
+	PossibleEnPassantCapture Square
+}
 
 type Direction struct {
 	Rank int

@@ -102,7 +102,7 @@ func parseFen(fen string) game.Position {
 	// What pawn can be captured en-passant?
 	enPassantTarget := parts[3]
 	if enPassantTarget == "-" {
-		position.PossibleEnPassantCapture = 0
+		position.PossibleEnPassantCapture = game.NoSquare
 	} else if len(enPassantTarget) != 2 {
 		panic(fmt.Sprintf("Invalid FEN en passant square: %s", fen))
 	} else {
