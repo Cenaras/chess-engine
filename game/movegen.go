@@ -336,7 +336,7 @@ func MakeMove(p *Position, move Move) UndoMoveState {
 	}
 
 	// TODO: Flip player to move
-
+	p.PlayerToMove = p.PlayerToMove.Opponent()
 	return undoMoveState
 
 }

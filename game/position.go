@@ -78,6 +78,13 @@ type Position struct {
 	PossibleEnPassantCapture Square       // todo: representable using 4bits. Using the playerToMove to indicate the rank and just store the file
 }
 
+func (p Player) Opponent() Player {
+	if p == WHITE.Player() {
+		return BLACK.Player()
+	}
+	return WHITE.Player()
+}
+
 func (p Position) GetPieceAt(square Square) Piece {
 	return p.Board[square]
 }
