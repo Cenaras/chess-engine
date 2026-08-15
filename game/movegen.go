@@ -1,9 +1,5 @@
 package game
 
-import (
-	"fmt"
-)
-
 var rookDirections = []Direction{
 	// S, N, W, E
 	{-1, 0}, {1, 0}, {0, -1}, {0, 1},
@@ -76,7 +72,7 @@ func genSlidingPieceMoves(startSquare Square, color Player, moves []Move, positi
 			}
 
 			// Square is empty
-			moves = append(moves, Move{currentSquare, targetSquare})
+			moves = append(moves, Move{currentSquare, targetSquare, NormalMove})
 
 			// If we captured a piece, break as well
 			if pieceType != NONE {
@@ -85,10 +81,8 @@ func genSlidingPieceMoves(startSquare Square, color Player, moves []Move, positi
 
 			// Continue search from new square
 			currentSquare = targetSquare
-
 		}
 	}
-
 	return moves
 }
 
@@ -108,7 +102,7 @@ func genKingMoves(startSquare Square, color Player, moves []Move, position *Posi
 		targetPiece, targetColor := position.GetPieceAt(targetSquare)
 		// Empty or opponent piece
 		if targetPiece == NONE || !IsSameColor(targetColor, color) {
-			moves = append(moves, Move{startSquare, targetSquare})
+			moves = append(moves, Move{startSquare, targetSquare, NormalMove})
 		}
 
 		// Castle moves:
@@ -122,14 +116,14 @@ func genKingMoves(startSquare Square, color Player, moves []Move, position *Posi
 			queenSide = BlackQueenSide
 		}
 
-		addCastleMove := func(side CastleRights, direction int) {
+		addCastleMove := func(side CastleRights, direction int, sideFlag MoveFlag) {
 			if position.CastleRights&side != 0 {
 				// since castling is valid we dont need to check if OOB
-				moves = append(moves, Move{startSquare, startSquare + Square(direction)})
+				moves = append(moves, Move{startSquare, startSquare + Square(direction), sideFlag})
 			}
 		}
-		addCastleMove(kingSide, 2)
-		addCastleMove(queenSide, -2)
+		addCastleMove(kingSide, 2, KingCastle)
+		addCastleMove(queenSide, -2, QueenCastle)
 	}
 	return moves
 }
@@ -150,7 +144,7 @@ func genPawnMoves(startSquare Square, color Player, moves []Move, position *Posi
 		panic(err) // should be impossible: pawn would have been promoted
 	}
 	if singleMoveTargetPiece, _ := position.GetPieceAt(singleMoveSquare); singleMoveTargetPiece == NONE {
-		moves = append(moves, Move{startSquare, singleMoveSquare})
+		moves = append(moves, Move{startSquare, singleMoveSquare, NormalMove})
 		// Also look for double pawn moves here, since no piece was infront
 		if IsStartPawnRank(startSquare, color) {
 			doubleMoveSquare, err := MoveDirection(startSquare, doubleForwards)
@@ -158,7 +152,7 @@ func genPawnMoves(startSquare Square, color Player, moves []Move, position *Posi
 				panic(err) // should never be out of bounds for a 2x move. Just in case...
 			}
 			if doubleMoveTargetPiece, _ := position.GetPieceAt(doubleMoveSquare); doubleMoveTargetPiece == NONE {
-				moves = append(moves, Move{startSquare, doubleMoveSquare})
+				moves = append(moves, Move{startSquare, doubleMoveSquare, DoublePawnPush})
 			}
 		}
 	}
@@ -177,11 +171,11 @@ func genPawnMoves(startSquare Square, color Player, moves []Move, position *Posi
 			// check for normal attack
 			pieceToAttack, pieceColor := position.GetPieceAt(squareToAttack)
 			if pieceToAttack != NONE && !IsSameColor(color, pieceColor) {
-				moves = append(moves, Move{startSquare, squareToAttack})
+				moves = append(moves, Move{startSquare, squareToAttack, NormalMove})
 			}
 			// check for en-passant
 			if pieceToAttack == NONE && squareToAttack == position.PossibleEnPassantCapture {
-				moves = append(moves, Move{startSquare, squareToAttack})
+				moves = append(moves, Move{startSquare, squareToAttack, EnPassantCapture})
 			}
 		}
 		return moves
@@ -203,7 +197,7 @@ func genKnightMoves(startSquare Square, color Player, moves []Move, position *Po
 		}
 		_, targetColor := position.GetPieceAt(targetSquare)
 		if !IsSameColor(color, targetColor) {
-			moves = append(moves, Move{startSquare, targetSquare})
+			moves = append(moves, Move{startSquare, targetSquare, NormalMove})
 		}
 
 	}
@@ -215,16 +209,38 @@ func GenerateMoves(position *Position) []Move {
 	// generate all pseudo legal moves, play them and check if our king is capturable.
 	// optimize later: attack maps etc...
 	pseudo := pseudoLegalmove(position)
-	fmt.Printf("Pseudo-legal moves: %d\n", len(pseudo))
-
 	return pseudo
 }
 
-func MakeMove(move Move) {
+func MakeMove(p *Position, move Move) UndoMoveState {
 	// TODO: make the move
+
+	from := move.From
+	to := move.To
+	moveFlag := move.Flag
+	piece, _ := p.GetPieceAt(from)
+	// Move pieces around
+	p.SetPieceAt(piece, to)
+	p.SetPieceAt(NONE, from)
+
+	// Update the position state
+	switch moveFlag {
+	case DoublePawnPush:
+	case EnPassantCapture:
+	case KingCastle:
+	case QueenCastle:
+	case PromoteBishop:
+	case PromoteKnight:
+	case PromoteRook:
+	case PromoteQueen:
+	}
+
+	// TODO: ...
+	return UndoMoveState{}
+
 }
 
-func UnmakeMove(move Move) {
+func UnmakeMove(p *Position, move Move, undo UndoMoveState) {
 	// TODO: unmake the move.
 	// Remember to undo any side-effects making the move had
 	// such as en-passant squares etc

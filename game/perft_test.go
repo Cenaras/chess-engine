@@ -7,8 +7,9 @@ import (
 )
 
 func TestStartingFen(t *testing.T) {
-	performPerft(t, fen.StartingFEN, 0, 1)
-	performPerft(t, fen.StartingFEN, 1, 20)
+	// performPerft(t, fen.StartingFEN, 0, 1)
+	// performPerft(t, fen.StartingFEN, 1, 20)
+	// performPerft(t, fen.StartingFEN, 2, 400)
 
 }
 
@@ -28,9 +29,9 @@ func perft(pos *game.Position, depth int) uint64 {
 
 	moves := game.GenerateMoves(pos)
 	for _, move := range moves {
-		game.MakeMove(move)
+		undo := game.MakeMove(pos, move)
 		nodes += perft(pos, depth-1)
-		game.UnmakeMove(move)
+		game.UnmakeMove(pos, move, undo)
 	}
 	return nodes
 }

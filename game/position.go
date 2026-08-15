@@ -69,6 +69,7 @@ const (
 
 type Square int // 0..64
 
+// TODO: Encapsulate to avoid exposing datatype?
 type Position struct {
 	Board                    [64]Piece
 	PlayerToMove             Player
@@ -78,14 +79,36 @@ type Position struct {
 
 // PieceType, Color
 func (p Position) GetPieceAt(square Square) (Piece, Player) {
-	piece := p.board[square]
+	piece := p.Board[square]
 	return piece.Type(), piece.Player()
 }
+
+func (p Position) SetPieceAt(piece Piece, square Square) {
+	p.Board[square] = piece
+}
+
+type MoveFlag uint8
+
+const (
+	NormalMove MoveFlag = iota
+	DoublePawnPush
+	KingCastle
+	QueenCastle
+	EnPassantCapture
+	PromoteKnight
+	PromoteBishop
+	PromoteRook
+	PromoteQueen
+)
 
 type Move struct {
 	From Square
 	To   Square
+	Flag MoveFlag
 }
+
+// TODO: Populate
+type UndoMoveState struct{}
 
 type Direction struct {
 	Rank int
