@@ -21,10 +21,13 @@ To inspect a specific function further, do:
 `list [functiongame]`
 
 ### Perft tests
-**Starting Position (5), Position 3 (5), Position 4 (4), Position 5 (5)**
+**Starting Position (5), Position 3 (3) , Position 5 (5)**
 Additions are incremental, meaning row i+1 contains all optimizations from 0...i
 
 Naive Make-All-Response-Moves:  TIMEOUT / N/A
 IsSquareAttackedChecK:          366.77s
 KingSquareInPosition:           368.57s
 BooleanOverErrorForOOB:         6.98s   (Constructing an error after every illegal move is expensive!!!)
+
+**Starting Position (6), Position 3 (6), Position 4 (6), Position 6 (5)**
+BooleanOverErrorForOOB         63.2s

@@ -1,5 +1,7 @@
 package game_test
 
+// See: https://chessprogramming.org/Perft_Results
+
 import (
 	"chess/fen"
 	"chess/game"
@@ -26,6 +28,7 @@ var startingPosPerft = ExpectedPerftTable{
 		{Depth: 3, Nodes: 8902},
 		{Depth: 4, Nodes: 197281},
 		{Depth: 5, Nodes: 4865609},
+		{Depth: 6, Nodes: 119060324},
 	},
 }
 
@@ -37,6 +40,7 @@ var position3Perft = ExpectedPerftTable{
 		{Depth: 3, Nodes: 2812},
 		{Depth: 4, Nodes: 43238},
 		{Depth: 5, Nodes: 674624},
+		{Depth: 6, Nodes: 11030083},
 	},
 }
 
@@ -49,6 +53,8 @@ var position4Perft = ExpectedPerftTable{
 		{Depth: 2, Nodes: 264},
 		{Depth: 3, Nodes: 9467},
 		{Depth: 4, Nodes: 422333},
+		{Depth: 5, Nodes: 15833292},
+		{Depth: 6, Nodes: 706045033},
 	},
 }
 
@@ -64,11 +70,15 @@ var position5Perft = ExpectedPerftTable{
 }
 
 func TestStartingFen(t *testing.T) {
-	performPerft(t, startingPosPerft, 5)
+	performPerft(t, startingPosPerft, 6)
 }
 
 func TestPosition3(t *testing.T) {
-	performPerft(t, position3Perft, 3)
+	performPerft(t, position3Perft, 6)
+}
+
+func TestPosition4(t *testing.T) {
+	performPerft(t, position4Perft, 6)
 }
 
 func TestPosition5(t *testing.T) {
