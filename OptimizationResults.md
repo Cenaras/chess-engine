@@ -33,3 +33,4 @@ BooleanOverErrorForOOB:         6.98s   (Constructing an error after every illeg
 BooleanOverErrorForOOB         63.2s
 PrecomputeKnightMoves          59.7s
 PreComputeKingMoves            55.2s
+PreComputePawnMoves            49.7s

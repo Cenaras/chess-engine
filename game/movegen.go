@@ -44,6 +44,17 @@ var knightOffsets = []Direction{
 }
 var knightMoves [64][]Square = precomputeMoves(knightOffsets)
 
+var whitePawnForwardMoves = precomputeMoves([]Direction{{1, 0}})
+var blackPawnForwardMoves = precomputeMoves([]Direction{{-1, 0}})
+var whitePawnDoubleMoves = precomputeMoves([]Direction{{2, 0}})
+var blackPawnDoubleMoves = precomputeMoves([]Direction{{-2, 0}})
+var whitePawnAttackMoves = precomputeMoves([]Direction{{1, -1}, {1, 1}})
+var blackPawnAttackMoves = precomputeMoves([]Direction{{-1, -1}, {-1, 1}})
+
+// Directions to check if a pawn attacks our square (used by isSquareAttacked)
+var whitePawnAttackers = precomputeMoves([]Direction{{-1, -1}, {-1, 1}})
+var blackPawnAttackers = precomputeMoves([]Direction{{1, -1}, {1, 1}})
+
 // Generate all pseudo legal moves for the current position
 func pseudoLegalMove(position *Position) []Move {
 	// loop every single piece, compute all its pseudolegal moves
@@ -153,79 +164,66 @@ func genKingMoves(startSquare Square, color Player, moves []Move, position *Posi
 	return moves
 }
 
+func appendPawnMove(moves []Move, from Square, to Square, color Player, flag MoveFlag) []Move {
+	if IsPromotionRank(to, color) {
+		return append(
+			moves,
+			Move{from, to, PromoteQueen},
+			Move{from, to, PromoteRook},
+			Move{from, to, PromoteBishop},
+			Move{from, to, PromoteKnight},
+		)
+	}
+	return append(moves, Move{from, to, flag})
+}
+
 func genPawnMoves(startSquare Square, color Player, moves []Move, position *Position) []Move {
-	var forwards, doubleForwards Direction
+	// Get forwards precomputed moves based on color
+	var forwardTargets []Square
+	var doubleTargets []Square
+	var attackTargets []Square
+
 	if color == WHITE.Player() {
-		forwards = Direction{1, 0}
-		doubleForwards = Direction{2, 0}
+		forwardTargets = whitePawnForwardMoves[startSquare]
+		doubleTargets = whitePawnDoubleMoves[startSquare]
+		attackTargets = whitePawnAttackMoves[startSquare]
 	} else {
-		forwards = Direction{-1, 0}
-		doubleForwards = Direction{-2, 0}
+		forwardTargets = blackPawnForwardMoves[startSquare]
+		doubleTargets = blackPawnDoubleMoves[startSquare]
+		attackTargets = blackPawnAttackMoves[startSquare]
 	}
 
-	// Append a pawn move, including promotions
-	appendPawnMove := func(
-		moves []Move,
-		from Square,
-		to Square,
-		color Player,
-		flag MoveFlag) []Move {
-		if IsPromotionRank(to, color) {
-			moves = append(moves,
-				Move{from, to, PromoteQueen},
-				Move{from, to, PromoteRook},
-				Move{from, to, PromoteBishop},
-				Move{from, to, PromoteKnight},
-			)
-			return moves
-		}
-		return append(moves, Move{from, to, flag})
-	}
+	// Single forward move.
+	if len(forwardTargets) > 0 {
+		targetSquare := forwardTargets[0]
 
-	// Single forwards move
-	singleMoveSquare, _ := MoveDirection(startSquare, forwards)
+		if position.GetPieceAt(targetSquare) == NONE {
+			moves = appendPawnMove(moves, startSquare, targetSquare, color, NormalMove)
 
-	singleMoveTargetPiece := position.GetPieceAt(singleMoveSquare)
-	if singleMoveTargetPiece == NONE {
-		moves = appendPawnMove(moves, startSquare, singleMoveSquare, color, NormalMove)
-		// Also look for double pawn moves here, since no piece was infront
-		if IsStartPawnRank(startSquare, color) {
-			doubleMoveSquare, _ := MoveDirection(startSquare, doubleForwards)
-			doubleMoveTargetPiece := position.GetPieceAt(doubleMoveSquare)
-			if doubleMoveTargetPiece == NONE {
-				moves = append(moves, Move{startSquare, doubleMoveSquare, DoublePawnPush})
+			if IsStartPawnRank(startSquare, color) &&
+				len(doubleTargets) > 0 {
+
+				doubleTarget := doubleTargets[0]
+
+				if position.GetPieceAt(doubleTarget) == NONE {
+					moves = append(moves, Move{startSquare, doubleTarget, DoublePawnPush})
+				}
 			}
 		}
 	}
-	var attackLeft, attackRight Direction
-	if color == WHITE.Player() {
-		attackLeft = Direction{1, -1}
-		attackRight = Direction{1, 1}
-	} else {
-		attackLeft = Direction{-1, -1}
-		attackRight = Direction{-1, 1}
-	}
 
-	attackSide := func(square Square, direction Direction) []Move {
-		squareToAttack, success := MoveDirection(square, direction)
-		if !success {
-			return moves
-		}
-		// check for normal attack
-		piece := position.GetPieceAt(squareToAttack)
-		pieceColor := piece.Player()
-		if piece != NONE && !IsSameColor(color, pieceColor) {
-			moves = appendPawnMove(moves, startSquare, squareToAttack, color, NormalMove)
-		}
-		// check for en-passant
-		if piece == NONE && squareToAttack == position.PossibleEnPassantCapture {
-			moves = append(moves, Move{startSquare, squareToAttack, EnPassantCapture})
-		}
-		return moves
-	}
+	for _, targetSquare := range attackTargets {
+		piece := position.GetPieceAt(targetSquare)
 
-	moves = attackSide(startSquare, attackLeft)
-	moves = attackSide(startSquare, attackRight)
+		if piece != NONE && piece.Player() != color {
+			moves = appendPawnMove(moves, startSquare, targetSquare, color, NormalMove)
+		}
+
+		if piece == NONE &&
+			targetSquare == position.PossibleEnPassantCapture {
+			moves = append(moves, Move{startSquare, targetSquare, EnPassantCapture})
+		}
+	}
 	return moves
 }
 
@@ -240,17 +238,9 @@ func genKnightMoves(startSquare Square, color Player, moves []Move, position *Po
 	return moves
 }
 
-// As a starting point, define isSquareAttacked() which checks if a square
-// is attacked, by scanning through rays, pawns, knights etc...
-// then use that after makemove, to check just if the king is attacked.
-// then implement precomputed data for all but sliding pieces.
-// Then work towards bitboards, attack masks etc.
-
 /*
 	Optimizations:
-	 - Store the kings square in the position: currently we are iterating 64 squares for each move to find him
-	 - Precompute knight and king movements for each square -- replace both move gen and attack scan with this!
-
+	 - Bitboards and attack masks
 */
 
 // Generate all legal moves for the position
@@ -288,16 +278,12 @@ func GenerateMoves(position *Position) []Move {
 			kingSquare,
 			opponent,
 		)
-
 		UnmakeMove(position, move, undo)
-
 		if kingAttacked {
 			continue
 		}
-
 		legal = append(legal, move)
 	}
-
 	return legal
 }
 
@@ -352,24 +338,17 @@ func isSquareAttackedBy(position *Position, square Square, attacker Player) bool
 	}
 
 	// Check pawns
-	var pawnAttackers [2]Direction
+	var pawnAttackers []Square
+
 	if attacker == WHITE.Player() {
-		pawnAttackers = [2]Direction{
-			{-1, -1},
-			{-1, 1},
-		}
+		pawnAttackers = whitePawnAttackers[square]
 	} else {
-		pawnAttackers = [2]Direction{
-			{1, -1},
-			{1, 1},
-		}
+		pawnAttackers = blackPawnAttackers[square]
 	}
-	for _, dir := range pawnAttackers {
-		targetSquare, success := MoveDirection(square, dir)
-		if !success {
-			continue
-		}
-		piece := position.GetPieceAt(targetSquare)
+
+	for _, attackerSquare := range pawnAttackers {
+		piece := position.GetPieceAt(attackerSquare)
+
 		if piece.Player() == attacker && piece.Type() == PAWN {
 			return true
 		}
