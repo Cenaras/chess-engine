@@ -1,7 +1,6 @@
 package game
 
 import (
-	"fmt"
 	"slices"
 )
 
@@ -268,10 +267,6 @@ func GenerateMoves(position *Position) []Move {
 	player := position.PlayerToMove
 	opponent := player.Opponent()
 
-	// DEBUG:
-	fmt.Println("e1 attacked:", isSquareAttackedBy(position, 4, BLACK.Player()))
-	fmt.Println("f1 attacked:", isSquareAttackedBy(position, 5, BLACK.Player()))
-	fmt.Println("g1 attacked:", isSquareAttackedBy(position, 6, BLACK.Player()))
 	for _, move := range pseudo {
 		if move.Flag == KingCastle || move.Flag == QueenCastle {
 			// Cannot castle out of check.

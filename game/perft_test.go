@@ -5,6 +5,7 @@ import (
 	"chess/game"
 	"fmt"
 	"testing"
+	"time"
 )
 
 type ExpectedPerft struct {
@@ -20,7 +21,6 @@ type ExpectedPerftTable struct {
 var startingPosPerft = ExpectedPerftTable{
 	FEN: fen.StartingFEN,
 	Results: []ExpectedPerft{
-		{Depth: 0, Nodes: 1},
 		{Depth: 1, Nodes: 20},
 		{Depth: 2, Nodes: 400},
 		{Depth: 3, Nodes: 8902},
@@ -29,9 +29,31 @@ var startingPosPerft = ExpectedPerftTable{
 	},
 }
 
-var position5FEN = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8"
+var position3Perft = ExpectedPerftTable{
+	FEN: "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+	Results: []ExpectedPerft{
+		{Depth: 1, Nodes: 14},
+		{Depth: 2, Nodes: 191},
+		{Depth: 3, Nodes: 2812},
+		{Depth: 4, Nodes: 43238},
+		{Depth: 5, Nodes: 674624},
+	},
+}
+
+// Only 4 nodes as depth 5 and 6 explode. Return and extend with larger tables once
+// implementation is faster
+var position4Perft = ExpectedPerftTable{
+	FEN: "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
+	Results: []ExpectedPerft{
+		{Depth: 1, Nodes: 6},
+		{Depth: 2, Nodes: 264},
+		{Depth: 3, Nodes: 9467},
+		{Depth: 4, Nodes: 422333},
+	},
+}
+
 var position5Perft = ExpectedPerftTable{
-	FEN: position5FEN,
+	FEN: "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
 	Results: []ExpectedPerft{
 		{Depth: 1, Nodes: 44},
 		{Depth: 2, Nodes: 1486},
@@ -43,6 +65,10 @@ var position5Perft = ExpectedPerftTable{
 
 func TestStartingFen(t *testing.T) {
 	performPerft(t, startingPosPerft, 5)
+}
+
+func TestPosition3(t *testing.T) {
+	performPerft(t, position3Perft, 3)
 }
 
 func TestPosition5(t *testing.T) {
@@ -81,8 +107,24 @@ func performPerft(t *testing.T, table ExpectedPerftTable, maxDepth int) {
 			continue
 		}
 		t.Run(fmt.Sprintf("depth_%d", expected.Depth), func(t *testing.T) {
+
+			fmt.Printf(
+				"Starting depth %d (expected %d nodes)...\n",
+				expected.Depth,
+				expected.Nodes,
+			)
 			position := fen.LoadFenPosition(table.FEN)
-			actualNodes := perft(&position, expected.Depth)
+
+			start := time.Now()
+			actualNodes := bulkPerft(&position, expected.Depth)
+			duration := time.Since(start)
+
+			fmt.Printf(
+				"Completed depth %d: %d nodes in %s\n",
+				expected.Depth,
+				actualNodes,
+				duration,
+			)
 
 			if actualNodes != expected.Nodes {
 				t.Errorf(
@@ -97,6 +139,24 @@ func performPerft(t *testing.T, table ExpectedPerftTable, maxDepth int) {
 	}
 }
 
+func bulkPerft(pos *game.Position, depth int) uint64 {
+	if depth < 1 {
+		panic("bulk perft must have depth >= 1")
+	}
+	var nodes uint64
+	moves := game.GenerateMoves(pos)
+	numberOfMoves := len(moves)
+
+	if depth == 1 {
+		return uint64(numberOfMoves)
+	}
+	for _, move := range moves {
+		undo := game.MakeMove(pos, move)
+		nodes += bulkPerft(pos, depth-1)
+		game.UnmakeMove(pos, move, undo)
+	}
+	return nodes
+}
 func perft(pos *game.Position, depth int) uint64 {
 	var nodes uint64 = 0
 	if depth == 0 {
