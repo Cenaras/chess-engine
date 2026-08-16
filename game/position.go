@@ -70,12 +70,13 @@ const (
 type Square uint8 // 0..64
 const NoSquare Square = 64
 
-// TODO: Encapsulate to avoid exposing datatype?
+// TODO: Encapsulate fields to avoid exposing datatype?
+// TODO: Represent flags using more compact notation
 type Position struct {
 	Board                    [64]Piece
 	PlayerToMove             Player
-	CastleRights             CastleRights // 0001
-	PossibleEnPassantCapture Square       // todo: representable using 4bits. Using the playerToMove to indicate the rank and just store the file
+	CastleRights             CastleRights
+	PossibleEnPassantCapture Square
 	WhiteKingSquare          Square
 	BlackKingSquare          Square
 }
