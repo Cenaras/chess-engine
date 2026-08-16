@@ -76,6 +76,8 @@ type Position struct {
 	PlayerToMove             Player
 	CastleRights             CastleRights // 0001
 	PossibleEnPassantCapture Square       // todo: representable using 4bits. Using the playerToMove to indicate the rank and just store the file
+	WhiteKingSquare          Square
+	BlackKingSquare          Square
 }
 
 func (p Player) Opponent() Player {
@@ -93,14 +95,11 @@ func (p *Position) SetPieceAt(piece Piece, square Square) {
 	p.Board[square] = piece
 }
 
-// TODO: Store this instead of search?
 func (p *Position) FindKing(player Player) Square {
-	for square, piece := range p.Board {
-		if piece.Type() == KING && piece.Player() == player {
-			return Square(square)
-		}
+	if player == WHITE.Player() {
+		return p.WhiteKingSquare
 	}
-	panic("King is missing from the board!")
+	return p.BlackKingSquare
 }
 
 type MoveFlag uint8
@@ -127,6 +126,7 @@ type UndoMoveState struct {
 	CapturedPiece            Piece
 	CastleRights             CastleRights
 	PossibleEnPassantCapture Square
+	OldKingSquare            Square
 }
 
 type Direction struct {
@@ -167,20 +167,17 @@ func IsStartPawnRank(square Square, color Player) bool {
 	panic(fmt.Sprintf("Invalid color for player: %d", color))
 }
 
-func MoveDirection(square Square, direction Direction) (Square, error) {
+func MoveDirection(square Square, direction Direction) (Square, bool) {
 	startRank, startFile := SquareToRankFile(square)
 	newRank := startRank + direction.Rank
 	newFile := startFile + direction.File
 
 	// Illegal direction for this piece
 	if !IsLegalRank(newRank) || !IsLegalFile(newFile) {
-		return 0, fmt.Errorf(
-			"moving square %d by direction %+v goes off the board",
-			square,
-			direction)
+		return 0, false
 	}
 	// Target square is within the board
-	return RankFileToSquare(newRank, newFile), nil
+	return RankFileToSquare(newRank, newFile), true
 }
 
 func IsSameColor(c1 Player, c2 Player) bool {

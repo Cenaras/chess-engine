@@ -70,9 +70,9 @@ func genSlidingPieceMoves(startSquare Square, color Player, moves []Move, positi
 	for _, direction := range directions {
 		currentSquare := startSquare
 		for {
-			targetSquare, err := MoveDirection(currentSquare, direction)
+			targetSquare, success := MoveDirection(currentSquare, direction)
 			// Moving further in this direction leaves the board
-			if err != nil {
+			if !success {
 				break
 			}
 
@@ -103,8 +103,8 @@ func genSlidingPieceMoves(startSquare Square, color Player, moves []Move, positi
 func genKingMoves(startSquare Square, color Player, moves []Move, position *Position) []Move {
 	// Regular moves
 	for _, direction := range kingDirection {
-		targetSquare, err := MoveDirection(startSquare, direction)
-		if err != nil {
+		targetSquare, success := MoveDirection(startSquare, direction)
+		if !success {
 			continue
 		}
 		targetPiece := position.GetPieceAt(targetSquare)
@@ -174,20 +174,14 @@ func genPawnMoves(startSquare Square, color Player, moves []Move, position *Posi
 	}
 
 	// Single forwards move
-	singleMoveSquare, err := MoveDirection(startSquare, forwards)
-	if err != nil {
-		panic(err) // should be impossible: pawn would have been promoted
-	}
+	singleMoveSquare, _ := MoveDirection(startSquare, forwards)
 
 	singleMoveTargetPiece := position.GetPieceAt(singleMoveSquare)
 	if singleMoveTargetPiece == NONE {
 		moves = appendPawnMove(moves, startSquare, singleMoveSquare, color, NormalMove)
 		// Also look for double pawn moves here, since no piece was infront
 		if IsStartPawnRank(startSquare, color) {
-			doubleMoveSquare, err := MoveDirection(startSquare, doubleForwards)
-			if err != nil {
-				panic(err) // should never be out of bounds for a 2x move. Just in case...
-			}
+			doubleMoveSquare, _ := MoveDirection(startSquare, doubleForwards)
 			doubleMoveTargetPiece := position.GetPieceAt(doubleMoveSquare)
 			if doubleMoveTargetPiece == NONE {
 				moves = append(moves, Move{startSquare, doubleMoveSquare, DoublePawnPush})
@@ -204,8 +198,8 @@ func genPawnMoves(startSquare Square, color Player, moves []Move, position *Posi
 	}
 
 	attackSide := func(square Square, direction Direction) []Move {
-		squareToAttack, err := MoveDirection(square, direction)
-		if err != nil {
+		squareToAttack, success := MoveDirection(square, direction)
+		if !success {
 			return moves
 		}
 		// check for normal attack
@@ -231,8 +225,8 @@ func genKnightMoves(startSquare Square, color Player, moves []Move, position *Po
 	// ensure that the knight doesn't move off the board
 	for _, direction := range knightOffsets {
 
-		targetSquare, err := MoveDirection(startSquare, direction)
-		if err != nil {
+		targetSquare, success := MoveDirection(startSquare, direction)
+		if !success {
 			continue
 		}
 		piece := position.GetPieceAt(targetSquare)
@@ -326,8 +320,8 @@ func isSquareAttackedBy(position *Position, square Square, attacker Player) bool
 		for _, dir := range rays {
 			currentSquare := square
 			for {
-				targetSquare, err := MoveDirection(currentSquare, dir)
-				if err != nil {
+				targetSquare, success := MoveDirection(currentSquare, dir)
+				if !success {
 					break
 				}
 				piece := position.GetPieceAt(targetSquare)
@@ -355,8 +349,8 @@ func isSquareAttackedBy(position *Position, square Square, attacker Player) bool
 	// Check knights (TODO: Precompute moves + isAttackedByKnights)
 	// Also duplicate code of genKnightMoves
 	for _, dir := range knightOffsets {
-		targetSquare, err := MoveDirection(square, dir)
-		if err != nil {
+		targetSquare, success := MoveDirection(square, dir)
+		if !success {
 			continue
 		}
 		piece := position.GetPieceAt(targetSquare)
@@ -367,8 +361,8 @@ func isSquareAttackedBy(position *Position, square Square, attacker Player) bool
 
 	// Check kings (also probably duplicate of king movement)
 	for _, direction := range kingDirection {
-		targetSquare, err := MoveDirection(square, direction)
-		if err != nil {
+		targetSquare, success := MoveDirection(square, direction)
+		if !success {
 			continue
 		}
 
@@ -392,8 +386,8 @@ func isSquareAttackedBy(position *Position, square Square, attacker Player) bool
 		}
 	}
 	for _, dir := range pawnAttackers {
-		targetSquare, err := MoveDirection(square, dir)
-		if err != nil {
+		targetSquare, success := MoveDirection(square, dir)
+		if !success {
 			continue
 		}
 		piece := position.GetPieceAt(targetSquare)
@@ -440,12 +434,17 @@ func MakeMove(p *Position, move Move) UndoMoveState {
 
 	movingPiece := p.GetPieceAt(from)
 	capturedPiece := p.GetPieceAt(to)
+	oldKingSquare := p.WhiteKingSquare
+	if movingPiece.Player() == BLACK.Player() {
+		oldKingSquare = p.BlackKingSquare
+	}
 
 	// capture the current board state so UnmakeMove can restore it
 	undoMoveState := UndoMoveState{
 		CapturedPiece:            capturedPiece,
 		CastleRights:             p.CastleRights,
 		PossibleEnPassantCapture: p.PossibleEnPassantCapture,
+		OldKingSquare:            oldKingSquare,
 	}
 
 	// Move pieces around
@@ -499,13 +498,15 @@ func MakeMove(p *Position, move Move) UndoMoveState {
 		p.SetPieceAt(QUEEN|Piece(movingPiece.Player()), to)
 	}
 
-	// Update castling rights when king/rook moves
+	// Update castling rights when king/rook moves and track new king position
 	switch movingPiece.Type() {
 	case KING:
 		if movingPiece.Player() == WHITE.Player() {
 			p.CastleRights &^= WhiteKingSide | WhiteQueenSide
+			p.WhiteKingSquare = move.To
 		} else {
 			p.CastleRights &^= BlackKingSide | BlackQueenSide
+			p.BlackKingSquare = move.To
 		}
 	case ROOK:
 		switch from {
@@ -541,7 +542,7 @@ func MakeMove(p *Position, move Move) UndoMoveState {
 		}
 	}
 
-	// TODO: Flip player to move
+	// Flip player to move
 	p.PlayerToMove = p.PlayerToMove.Opponent()
 	return undoMoveState
 
@@ -594,6 +595,12 @@ func UnmakeMove(p *Position, move Move, undo UndoMoveState) {
 	// Restore state
 	p.CastleRights = undo.CastleRights
 	p.PossibleEnPassantCapture = undo.PossibleEnPassantCapture
+	if movedPiece.Player() == WHITE.Player() {
+		p.WhiteKingSquare = undo.OldKingSquare
+	} else {
+		p.BlackKingSquare = undo.OldKingSquare
+	}
+
 	p.PlayerToMove = p.PlayerToMove.Opponent()
 }
 

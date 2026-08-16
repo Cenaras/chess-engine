@@ -27,14 +27,7 @@ func parseFen(fen string) game.Position {
 
 	// ------------------------------------------------------------
 	// Piece placement
-	//
-	// FEN starts at A8.
-	// Our representation:
-	//
-	// A1 = 0
-	// H1 = 7
-	// A8 = 56
-	// H8 = 63
+	// A1 = 0, H8 = 63
 	// ------------------------------------------------------------
 
 	rank := 7
@@ -71,6 +64,7 @@ func parseFen(fen string) game.Position {
 				piece = game.QUEEN | game.BLACK
 			case 'k':
 				piece = game.KING | game.BLACK
+				position.BlackKingSquare = game.Square(rank*8 + file)
 			case 'p':
 				piece = game.PAWN | game.BLACK
 
@@ -84,6 +78,7 @@ func parseFen(fen string) game.Position {
 				piece = game.QUEEN | game.WHITE
 			case 'K':
 				piece = game.KING | game.WHITE
+				position.WhiteKingSquare = game.Square(rank*8 + file)
 			case 'P':
 				piece = game.PAWN | game.WHITE
 
