@@ -69,7 +69,7 @@ func performPerft(t *testing.T, table ExpectedPerftTable, maxDepth int) {
 					table.FEN,
 				)
 			}
-			fmt.Sprintf("Success for depth %d", expected.Depth)
+			fmt.Printf("Success for depth %d", expected.Depth)
 		})
 	}
 }

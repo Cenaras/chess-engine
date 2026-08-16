@@ -152,6 +152,25 @@ func genPawnMoves(startSquare Square, color Player, moves []Move, position *Posi
 		doubleForwards = Direction{-2, 0}
 	}
 
+	// Append a pawn move, including promotions
+	appendPawnMove := func(
+		moves []Move,
+		from Square,
+		to Square,
+		color Player,
+		flag MoveFlag) []Move {
+		if IsPromotionRank(to, color) {
+			moves = append(moves,
+				Move{from, to, PromoteQueen},
+				Move{from, to, PromoteRook},
+				Move{from, to, PromoteBishop},
+				Move{from, to, PromoteKnight},
+			)
+			return moves
+		}
+		return append(moves, Move{from, to, flag})
+	}
+
 	// Single forwards move
 	singleMoveSquare, err := MoveDirection(startSquare, forwards)
 	if err != nil {
@@ -160,7 +179,7 @@ func genPawnMoves(startSquare Square, color Player, moves []Move, position *Posi
 
 	singleMoveTargetPiece := position.GetPieceAt(singleMoveSquare)
 	if singleMoveTargetPiece == NONE {
-		moves = append(moves, Move{startSquare, singleMoveSquare, NormalMove})
+		moves = appendPawnMove(moves, startSquare, singleMoveSquare, color, NormalMove)
 		// Also look for double pawn moves here, since no piece was infront
 		if IsStartPawnRank(startSquare, color) {
 			doubleMoveSquare, err := MoveDirection(startSquare, doubleForwards)
@@ -191,7 +210,7 @@ func genPawnMoves(startSquare Square, color Player, moves []Move, position *Posi
 		piece := position.GetPieceAt(squareToAttack)
 		pieceColor := piece.Player()
 		if piece != NONE && !IsSameColor(color, pieceColor) {
-			moves = append(moves, Move{startSquare, squareToAttack, NormalMove})
+			moves = appendPawnMove(moves, startSquare, squareToAttack, color, NormalMove)
 		}
 		// check for en-passant
 		if piece == NONE && squareToAttack == position.PossibleEnPassantCapture {
@@ -226,6 +245,10 @@ func genKnightMoves(startSquare Square, color Player, moves []Move, position *Po
 
 // TODO: Instead, keep in position state, which square we attack.
 // Calculate on the fly during movegen? That allows a simpel lookup
+// Have something like:
+// GenAttacks() GenPins() GenMoves() or sometihng like that
+// Don't just use side-effect of pseudo-legal moves.
+
 // Generate all legal moves for the position
 func GenerateMoves(position *Position) []Move {
 	pseudo := pseudoLegalmove(position)
@@ -363,11 +386,14 @@ func MakeMove(p *Position, move Move) UndoMoveState {
 		p.SetPieceAt(rook, rookTo)
 		p.SetPieceAt(NONE, rookFrom)
 
-	// TODO: Allow promotions as well!
 	case PromoteBishop:
+		p.SetPieceAt(BISHOP|Piece(movingPiece.Player()), to)
 	case PromoteKnight:
+		p.SetPieceAt(KNIGHT|Piece(movingPiece.Player()), to)
 	case PromoteRook:
+		p.SetPieceAt(ROOK|Piece(movingPiece.Player()), to)
 	case PromoteQueen:
+		p.SetPieceAt(QUEEN|Piece(movingPiece.Player()), to)
 	}
 
 	// Update castling rights when king/rook moves

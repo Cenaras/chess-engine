@@ -150,6 +150,13 @@ func IsLegalFile(file int) bool {
 	return file >= 0 && file < 8
 }
 
+func IsPromotionRank(square Square, color Player) bool {
+	if color == WHITE.Player() {
+		return square/8 == 7
+	}
+	return square/8 == 0
+}
+
 func IsStartPawnRank(square Square, color Player) bool {
 	if color == WHITE.Player() {
 		return square/8 == 1
