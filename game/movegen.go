@@ -290,7 +290,6 @@ func GenerateMoves(position *Position) []Move {
 // Calculate from the current position, if square is attacked by player
 func isSquareAttackedBy(position *Position, square Square, attacker Player) bool {
 	// TODO!!! This is pretty much the same logic as checking moves for sliding pieces -- REFACTOR
-
 	scanRay := func(rays []Direction, rayType Piece) bool {
 		for _, dir := range rays {
 			currentSquare := square
