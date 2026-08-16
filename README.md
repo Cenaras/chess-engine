@@ -1,5 +1,5 @@
-# TODO: Write this...
-
+# Chess Engine
+This project contains a chess engine written in Go.
 
 # Testing
 This project has two different types of tests: Unit tests and Perft tests.
