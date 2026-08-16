@@ -15,76 +15,117 @@ func LoadFenPosition(fen string) game.Position {
 }
 
 func parseFen(fen string) game.Position {
-	position := game.Position{}
+	position := game.Position{
+		PossibleEnPassantCapture: game.NoSquare,
+	}
 
-	// Parse FEN into parts, separated by spaces
 	parts := strings.Fields(fen)
 
-	// Set up position from parts[0]
-	index := 63
-	for _, ch := range parts[0] {
-		switch ch {
-		case 'r':
-			position.Board[index] = game.ROOK | game.BLACK
-			index--
-		case 'n':
-			position.Board[index] = game.KNIGHT | game.BLACK
-			index--
-		case 'b':
-			position.Board[index] = game.BISHOP | game.BLACK
-			index--
-		case 'q':
-			position.Board[index] = game.QUEEN | game.BLACK
-			index--
-		case 'k':
-			position.Board[index] = game.KING | game.BLACK
-			index--
-		case 'p':
-			position.Board[index] = game.PAWN | game.BLACK
-			index--
-		case 'R':
-			position.Board[index] = game.ROOK | game.WHITE
-			index--
-		case 'N':
-			position.Board[index] = game.KNIGHT | game.WHITE
-			index--
-		case 'B':
-			position.Board[index] = game.BISHOP | game.WHITE
-			index--
-		case 'Q':
-			position.Board[index] = game.QUEEN | game.WHITE
-			index--
-		case 'K':
-			position.Board[index] = game.KING | game.WHITE
-			index--
-		case 'P':
-			position.Board[index] = game.PAWN | game.WHITE
-			index--
-		case '/':
-			continue // NO OP as we are 1D array
-		case '1', '2', '3', '4', '5', '6', '7', '8':
-			emptySquares := int(ch - '0') // 'a' - '0' = a
-			index -= emptySquares
-		default:
-			panic(fmt.Sprintf("Invalid FEN: couldn't parse positional character %c", ch))
+	if len(parts) != 6 {
+		panic(fmt.Sprintf("invalid FEN: expected 6 fields, got %d", len(parts)))
+	}
 
+	// ------------------------------------------------------------
+	// Piece placement
+	//
+	// FEN starts at A8.
+	// Our representation:
+	//
+	// A1 = 0
+	// H1 = 7
+	// A8 = 56
+	// H8 = 63
+	// ------------------------------------------------------------
+
+	rank := 7
+	file := 0
+
+	for _, ch := range parts[0] {
+		switch {
+		case ch == '/':
+			if file != 8 {
+				panic("invalid FEN: rank does not contain 8 squares")
+			}
+
+			rank--
+			file = 0
+
+		case ch >= '1' && ch <= '8':
+			file += int(ch - '0')
+
+			if file > 8 {
+				panic("invalid FEN: too many squares in rank")
+			}
+
+		default:
+			var piece game.Piece
+
+			switch ch {
+			case 'r':
+				piece = game.ROOK | game.BLACK
+			case 'n':
+				piece = game.KNIGHT | game.BLACK
+			case 'b':
+				piece = game.BISHOP | game.BLACK
+			case 'q':
+				piece = game.QUEEN | game.BLACK
+			case 'k':
+				piece = game.KING | game.BLACK
+			case 'p':
+				piece = game.PAWN | game.BLACK
+
+			case 'R':
+				piece = game.ROOK | game.WHITE
+			case 'N':
+				piece = game.KNIGHT | game.WHITE
+			case 'B':
+				piece = game.BISHOP | game.WHITE
+			case 'Q':
+				piece = game.QUEEN | game.WHITE
+			case 'K':
+				piece = game.KING | game.WHITE
+			case 'P':
+				piece = game.PAWN | game.WHITE
+
+			default:
+				panic(fmt.Sprintf(
+					"invalid FEN: couldn't parse positional character %c",
+					ch,
+				))
+			}
+
+			if file >= 8 || rank < 0 {
+				panic("invalid FEN: invalid piece placement")
+			}
+
+			square := game.Square(rank*8 + file)
+			position.Board[square] = piece
+			file++
 		}
 	}
 
-	// player in turn from parts[1]
-	activeColor := parts[1]
-	switch activeColor {
+	if rank != 0 || file != 8 {
+		panic("invalid FEN: piece placement does not describe an 8x8 board")
+	}
+
+	// ------------------------------------------------------------
+	// Player to move
+	// ------------------------------------------------------------
+
+	switch parts[1] {
 	case "w":
 		position.PlayerToMove = game.Player(game.WHITE)
 	case "b":
 		position.PlayerToMove = game.Player(game.BLACK)
 	default:
-		panic("Invalid FEN: Player to move must be either \"w\" or \"b\"")
+		panic(`invalid FEN: player to move must be either "w" or "b"`)
 	}
 
-	// Where can both players castle to?
-	castlingRights := parts[2]
-	for _, ch := range castlingRights {
+	// ------------------------------------------------------------
+	// Castling rights
+	// ------------------------------------------------------------
+
+	for _, ch := range parts[2] {
 		switch ch {
 		case 'K':
 			position.CastleRights |= game.WhiteKingSide
@@ -95,31 +136,50 @@ func parseFen(fen string) game.Position {
 		case 'q':
 			position.CastleRights |= game.BlackQueenSide
 		case '-':
-			position.CastleRights = 0
+			// No castling rights.
+		default:
+			panic(fmt.Sprintf(
+				"invalid FEN castling character: %c",
+				ch,
+			))
 		}
 	}
 
-	// What pawn can be captured en-passant?
+	// ------------------------------------------------------------
+	// En passant target
+	// ------------------------------------------------------------
+
 	enPassantTarget := parts[3]
-	if enPassantTarget == "-" {
-		position.PossibleEnPassantCapture = game.NoSquare
-	} else if len(enPassantTarget) != 2 {
-		panic(fmt.Sprintf("Invalid FEN en passant square: %s", fen))
-	} else {
-		file := enPassantTarget[0]
-		rank := enPassantTarget[1]
-		if file < 'a' || file > 'h' || rank < '1' || rank > '8' {
-			panic(fmt.Sprintf("invalid fen en passant square: %s", fen))
+
+	if enPassantTarget != "-" {
+		if len(enPassantTarget) != 2 {
+			panic(fmt.Sprintf(
+				"invalid FEN en passant square: %s",
+				enPassantTarget,
+			))
 		}
-		fileIndex := int(file - 'a')
-		rankIndex := int('8' - rank)
-		index := rankIndex*8 + fileIndex
-		position.PossibleEnPassantCapture = game.Square(index)
+
+		fileChar := enPassantTarget[0]
+		rankChar := enPassantTarget[1]
+
+		if fileChar < 'a' || fileChar > 'h' ||
+			rankChar < '1' || rankChar > '8' {
+			panic(fmt.Sprintf(
+				"invalid FEN en passant square: %s",
+				enPassantTarget,
+			))
+		}
+
+		fileIndex := int(fileChar - 'a')
+		rankIndex := int(rankChar - '1')
+
+		position.PossibleEnPassantCapture =
+			game.Square(rankIndex*8 + fileIndex)
 	}
 
-	// TODO: Fix half and full move clocks
-	// halfMoveClock := parts[4]
-	// fullMoveClock := parts[5]
+	// TODO: halfmove/fullmove clocks
+	// parts[4]
+	// parts[5]
 
 	return position
 }

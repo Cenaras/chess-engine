@@ -49,8 +49,32 @@ func TestPosition5(t *testing.T) {
 	performPerft(t, position5Perft, 5)
 }
 
+func TestPosition5CanCastleKingSide(t *testing.T) {
+	position := fen.LoadFenPosition(
+		"rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
+	)
+
+	moves := game.GenerateMoves(&position)
+
+	found := false
+
+	for _, move := range moves {
+		if move.Flag == game.KingCastle {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		t.Error("expected white kingside castling to be legal")
+	}
+}
+
 func performPerft(t *testing.T, table ExpectedPerftTable, maxDepth int) {
 	t.Helper()
+	if testing.Short() {
+		t.Skip("Skipping pert tests in short mode")
+	}
 
 	for _, expected := range table.Results {
 		if expected.Depth > maxDepth {
@@ -69,7 +93,6 @@ func performPerft(t *testing.T, table ExpectedPerftTable, maxDepth int) {
 					table.FEN,
 				)
 			}
-			fmt.Printf("Success for depth %d", expected.Depth)
 		})
 	}
 }

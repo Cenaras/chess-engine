@@ -1,6 +1,9 @@
 package game
 
-import "slices"
+import (
+	"fmt"
+	"slices"
+)
 
 var rookDirections = []Direction{
 	// S, N, W, E
@@ -9,6 +12,12 @@ var rookDirections = []Direction{
 var bishopDirections = []Direction{
 	// NW, NE,  SE, SW
 	{1, -1}, {1, 1}, {-1, 1}, {-1, -1},
+}
+
+var kingDirection = [...]Direction{
+	{1, 0}, {1, 1}, {1, -1},
+	{0, 1}, {0, -1},
+	{-1, 0}, {-1, 1}, {-1, -1},
 }
 
 // TODO: Precompute target squares for every square
@@ -24,9 +33,9 @@ var knightOffsets = [...]Direction{
 }
 
 // Generate all pseudo legal moves for the current position
-func pseudoLegalmove(position *Position) []Move {
+func pseudoLegalMove(position *Position) []Move {
 	// loop every single piece, compute all its pseudolegal moves
-	var moves []Move
+	moves := make([]Move, 0, 64) // preallocate 64
 	board := position.Board
 	for idx := range board {
 		startSquare := Square(idx)
@@ -93,14 +102,8 @@ func genSlidingPieceMoves(startSquare Square, color Player, moves []Move, positi
 }
 
 func genKingMoves(startSquare Square, color Player, moves []Move, position *Position) []Move {
-	var directions = [...]Direction{
-		{1, 0}, {1, 1}, {1, -1},
-		{0, 1}, {0, -1},
-		{-1, 0}, {-1, 1}, {-1, -1},
-	}
-
 	// Regular moves
-	for _, direction := range directions {
+	for _, direction := range kingDirection {
 		targetSquare, err := MoveDirection(startSquare, direction)
 		if err != nil {
 			continue
@@ -243,26 +246,36 @@ func genKnightMoves(startSquare Square, color Player, moves []Move, position *Po
 	return moves
 }
 
-// TODO: Instead, keep in position state, which square we attack.
-// Calculate on the fly during movegen? That allows a simpel lookup
-// Have something like:
-// GenAttacks() GenPins() GenMoves() or sometihng like that
-// Don't just use side-effect of pseudo-legal moves.
+// As a starting point, define isSquareAttacked() which checks if a square
+// is attacked, by scanning through rays, pawns, knights etc...
+// then use that after makemove, to check just if the king is attacked.
+// then implement precomputed data for all but sliding pieces.
+// Then work towards bitboards, attack masks etc.
+
+/*
+	Optimizations:
+	 - Store the kings square in the position: currently we are iterating 64 squares for each move to find him
+	 - Precompute knight and king movements for each square -- replace both move gen and attack scan with this!
+
+*/
 
 // Generate all legal moves for the position
 func GenerateMoves(position *Position) []Move {
-	pseudo := pseudoLegalmove(position)
+	// TODO: Preallocate a 256 sized buffer and reuse that instead of allocating on the heap
+	pseudo := pseudoLegalMove(position)
 	legal := make([]Move, 0, len(pseudo))
 
 	player := position.PlayerToMove
 	opponent := player.Opponent()
 
+	// DEBUG:
+	fmt.Println("e1 attacked:", isSquareAttackedBy(position, 4, BLACK.Player()))
+	fmt.Println("f1 attacked:", isSquareAttackedBy(position, 5, BLACK.Player()))
+	fmt.Println("g1 attacked:", isSquareAttackedBy(position, 6, BLACK.Player()))
 	for _, move := range pseudo {
-		// Castling has two extra requirements that cannot be checked
-		// just by looking at the final position.
 		if move.Flag == KingCastle || move.Flag == QueenCastle {
-			// Cannot castle while currently in check.
-			if isSquareAttacked(position, move.From, opponent) {
+			// Cannot castle out of check.
+			if isSquareAttackedBy(position, move.From, opponent) {
 				continue
 			}
 
@@ -274,16 +287,25 @@ func GenerateMoves(position *Position) []Move {
 
 			throughSquare := Square(int(move.From) + offset)
 
-			if isSquareAttacked(position, throughSquare, opponent) {
+			// Move only the king to the intermediate square in a temporary
+			// position so removing it from move.From can reveal attacks.
+			temp := *position
+			king := temp.GetPieceAt(move.From)
+
+			temp.SetPieceAt(NONE, move.From)
+			temp.SetPieceAt(king, throughSquare)
+
+			if isSquareAttackedBy(&temp, throughSquare, opponent) {
 				continue
 			}
 		}
 
 		undo := MakeMove(position, move)
+
 		kingSquare := position.FindKing(player)
 
-		// Covers ordinary king safety and the final castling square.
-		kingAttacked := isSquareAttacked(
+		// Handles normal king safety and the final castling square.
+		kingAttacked := isSquareAttackedBy(
 			position,
 			kingSquare,
 			opponent,
@@ -301,8 +323,94 @@ func GenerateMoves(position *Position) []Move {
 	return legal
 }
 
+// Calculate from the current position, if square is attacked by player
+func isSquareAttackedBy(position *Position, square Square, attacker Player) bool {
+	// TODO!!! This is pretty much the same logic as checking moves for sliding pieces -- REFACTOR
+
+	scanRay := func(rays []Direction, rayType Piece) bool {
+		for _, dir := range rays {
+			currentSquare := square
+			for {
+				targetSquare, err := MoveDirection(currentSquare, dir)
+				if err != nil {
+					break
+				}
+				piece := position.GetPieceAt(targetSquare)
+				pieceType := piece.Type()
+
+				// Empty square, search outwards
+				if pieceType == NONE {
+					currentSquare = targetSquare
+					continue
+				}
+				// found bishop/rook or queen owned by attacker that can see the square
+				if piece.Player() == attacker && (pieceType == rayType || pieceType == QUEEN) {
+					return true
+				}
+				// A piece that isn't attacking us blocks the ray.
+				break
+			}
+		}
+		return false
+	}
+	// Scan outwards for sliding pieces
+	if scanRay(rookDirections, ROOK) || scanRay(bishopDirections, BISHOP) {
+		return true
+	}
+	// Check knights (TODO: Precompute moves + isAttackedByKnights)
+	// Also duplicate code of genKnightMoves
+	for _, dir := range knightOffsets {
+		targetSquare, err := MoveDirection(square, dir)
+		if err != nil {
+			continue
+		}
+		piece := position.GetPieceAt(targetSquare)
+		if piece.Player() == attacker && piece.Type() == KNIGHT {
+			return true
+		}
+	}
+
+	// Check kings (also probably duplicate of king movement)
+	for _, direction := range kingDirection {
+		targetSquare, err := MoveDirection(square, direction)
+		if err != nil {
+			continue
+		}
+
+		piece := position.GetPieceAt(targetSquare)
+		if piece.Player() == attacker && piece.Type() == KING {
+			return true
+		}
+	}
+
+	// HANDLE PAWNS
+	var pawnAttackers [2]Direction
+	if attacker == WHITE.Player() {
+		pawnAttackers = [2]Direction{
+			{-1, -1},
+			{-1, 1},
+		}
+	} else {
+		pawnAttackers = [2]Direction{
+			{1, -1},
+			{1, 1},
+		}
+	}
+	for _, dir := range pawnAttackers {
+		targetSquare, err := MoveDirection(square, dir)
+		if err != nil {
+			continue
+		}
+		piece := position.GetPieceAt(targetSquare)
+		if piece.Player() == attacker && piece.Type() == PAWN {
+			return true
+		}
+	}
+	return false
+}
+
 // !!!!!! TEMPORARY JUST TO GET TESTS GOING -- THIS SHOULD BE REDESIGNED!!!!!!
-func isSquareAttacked(position *Position, square Square, attacker Player) bool {
+func isSquareAttackedTEMP(position *Position, square Square, attacker Player) bool {
 	// Position contains a fixed [64]Piece array, so this gives us
 	// an independent temporary board.
 	temp := *position
@@ -318,7 +426,7 @@ func isSquareAttacked(position *Position, square Square, attacker Player) bool {
 		)
 	}
 
-	responses := pseudoLegalmove(&temp)
+	responses := pseudoLegalMove(&temp)
 
 	return slices.ContainsFunc(responses, func(move Move) bool {
 		// Castling itself is not an attack.
