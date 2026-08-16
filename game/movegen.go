@@ -1,5 +1,7 @@
 package game
 
+import "slices"
+
 var rookDirections = []Direction{
 	// S, N, W, E
 	{-1, 0}, {1, 0}, {0, -1}, {0, 1},
@@ -222,12 +224,87 @@ func genKnightMoves(startSquare Square, color Player, moves []Move, position *Po
 	return moves
 }
 
+// TODO: Instead, keep in position state, which square we attack.
+// Calculate on the fly during movegen? That allows a simpel lookup
 // Generate all legal moves for the position
 func GenerateMoves(position *Position) []Move {
-	// generate all pseudo legal moves, play them and check if our king is capturable.
-	// optimize later: attack maps etc...
 	pseudo := pseudoLegalmove(position)
-	return pseudo
+	legal := make([]Move, 0, len(pseudo))
+
+	player := position.PlayerToMove
+	opponent := player.Opponent()
+
+	for _, move := range pseudo {
+		// Castling has two extra requirements that cannot be checked
+		// just by looking at the final position.
+		if move.Flag == KingCastle || move.Flag == QueenCastle {
+			// Cannot castle while currently in check.
+			if isSquareAttacked(position, move.From, opponent) {
+				continue
+			}
+
+			// Cannot castle through check.
+			offset := 1
+			if move.Flag == QueenCastle {
+				offset = -1
+			}
+
+			throughSquare := Square(int(move.From) + offset)
+
+			if isSquareAttacked(position, throughSquare, opponent) {
+				continue
+			}
+		}
+
+		undo := MakeMove(position, move)
+		kingSquare := position.FindKing(player)
+
+		// Covers ordinary king safety and the final castling square.
+		kingAttacked := isSquareAttacked(
+			position,
+			kingSquare,
+			opponent,
+		)
+
+		UnmakeMove(position, move, undo)
+
+		if kingAttacked {
+			continue
+		}
+
+		legal = append(legal, move)
+	}
+
+	return legal
+}
+
+// !!!!!! TEMPORARY JUST TO GET TESTS GOING -- THIS SHOULD BE REDESIGNED!!!!!!
+func isSquareAttacked(position *Position, square Square, attacker Player) bool {
+	// Position contains a fixed [64]Piece array, so this gives us
+	// an independent temporary board.
+	temp := *position
+
+	temp.PlayerToMove = attacker
+
+	// We need something on the target square so pawn capture
+	// generation considers it an attack.
+	if temp.GetPieceAt(square) == NONE {
+		temp.SetPieceAt(
+			KING|Piece(attacker.Opponent()),
+			square,
+		)
+	}
+
+	responses := pseudoLegalmove(&temp)
+
+	return slices.ContainsFunc(responses, func(move Move) bool {
+		// Castling itself is not an attack.
+		if move.Flag == KingCastle || move.Flag == QueenCastle {
+			return false
+		}
+
+		return move.To == square
+	})
 }
 
 func MakeMove(p *Position, move Move) UndoMoveState {
@@ -342,9 +419,56 @@ func MakeMove(p *Position, move Move) UndoMoveState {
 }
 
 func UnmakeMove(p *Position, move Move, undo UndoMoveState) {
+	moveFlag := move.Flag
+	// Move pieces back / reinstate captured piece
+	movedPiece := p.GetPieceAt(move.To)
+	pieceToRestore := movedPiece
+	capturedPiece := undo.CapturedPiece
 
-	// TODO: unmake the move.
-	// Remember to undo any side-effects making the move had
-	// such as en-passant squares etc
-	// in particular, if the capture is an EnPassantCapture, reinstate the captured piece
+	// If capture was en-passant, restore captured pawn
+	switch moveFlag {
+	case EnPassantCapture:
+		// Captured pawn is always 1 rank behind pawns move's to
+		rowOffset := -8
+		pawn := PAWN | BLACK
+		if movedPiece.Player() == BLACK.Player() {
+			rowOffset = 8
+			pawn = PAWN | WHITE
+		}
+		capturedSquare := Square(int(move.To) + rowOffset)
+		p.SetPieceAt(pawn, capturedSquare)
+
+	case KingCastle:
+		// Move the rook back
+		rookNewSquare := move.To - 1
+		rookOriginalSquare := move.To + 1
+		rook := p.GetPieceAt(rookNewSquare)
+		p.SetPieceAt(rook, rookOriginalSquare)
+		p.SetPieceAt(NONE, rookNewSquare)
+	case QueenCastle:
+		// Move the rook back
+		rookNewSquare := move.To + 1
+		rookOriginalSquare := move.To - 2
+		rook := p.GetPieceAt(rookNewSquare)
+		p.SetPieceAt(rook, rookOriginalSquare)
+		p.SetPieceAt(NONE, rookNewSquare)
+
+	// Remove promoted piece, restore pawn. Since the piece at the To square
+	// is now the promoted piece, we should ensure that a pawn is placed
+	case PromoteKnight, PromoteBishop, PromoteRook, PromoteQueen:
+		pieceToRestore = PAWN | Piece(movedPiece.Player())
+	}
+	// Restore the actual move
+	p.SetPieceAt(pieceToRestore, move.From)
+	p.SetPieceAt(capturedPiece, move.To)
+
+	// Restore state
+	p.CastleRights = undo.CastleRights
+	p.PossibleEnPassantCapture = undo.PossibleEnPassantCapture
+	p.PlayerToMove = p.PlayerToMove.Opponent()
 }
+
+// TODO: unmake the move.
+// Remember to undo any side-effects making the move had
+// such as en-passant squares etc
+// in particular, if the capture is an EnPassantCapture, reinstate the captured piece

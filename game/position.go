@@ -85,17 +85,22 @@ func (p Player) Opponent() Player {
 	return WHITE.Player()
 }
 
-func (p Position) GetPieceAt(square Square) Piece {
+func (p *Position) GetPieceAt(square Square) Piece {
 	return p.Board[square]
 }
 
-// func (p Position) GetPieceAt(square Square) (Piece, Player) {
-// 	piece := p.Board[square]
-// 	return piece.Type(), piece.Player()
-// }
-
-func (p Position) SetPieceAt(piece Piece, square Square) {
+func (p *Position) SetPieceAt(piece Piece, square Square) {
 	p.Board[square] = piece
+}
+
+// TODO: Store this instead of search?
+func (p *Position) FindKing(player Player) Square {
+	for square, piece := range p.Board {
+		if piece.Type() == KING && piece.Player() == player {
+			return Square(square)
+		}
+	}
+	panic("King is missing from the board!")
 }
 
 type MoveFlag uint8
