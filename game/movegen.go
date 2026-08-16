@@ -380,8 +380,6 @@ func MakeMove(p *Position, move Move) UndoMoveState {
 	p.SetPieceAt(movingPiece, to)
 	p.SetPieceAt(NONE, from)
 
-	// TODO: handle special operations -- first rook/king move invalidates castle etc
-
 	// Update the position state
 	// Clear the en-passant move (will be reset if the move was double pawn)
 	p.PossibleEnPassantCapture = NoSquare
@@ -532,8 +530,3 @@ func UnmakeMove(p *Position, move Move, undo UndoMoveState) {
 
 	p.PlayerToMove = p.PlayerToMove.Opponent()
 }
-
-// TODO: unmake the move.
-// Remember to undo any side-effects making the move had
-// such as en-passant squares etc
-// in particular, if the capture is an EnPassantCapture, reinstate the captured piece
