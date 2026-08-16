@@ -241,6 +241,10 @@ func genKnightMoves(startSquare Square, color Player, moves []Move, position *Po
 /*
 	Optimizations:
 	 - Bitboards and attack masks
+	 - Keep track of all squares that opponent attacks
+	 	- If we are in check, 1) move to safe square, 2) capture attacker, 3) block
+		- Requires pinned pieces as well to check if we can block
+		- Disallow all moves that don't satisfy this
 */
 
 // Generate all legal moves for the position
@@ -251,6 +255,15 @@ func GenerateMoves(position *Position) []Move {
 
 	player := position.PlayerToMove
 	opponent := player.Opponent()
+
+	// TODO: At this point, compute information about king safety;
+	// What squares are checking us? What squares are pinned? Are we double checked?
+	// This informtion can be useful to filter out illegal moves from the pseudo-legal moves
+	// instead of calculating the rays etc for each pseudo-legal move
+
+	// kingSafety := CalculateKingSafety()
+	// for move in pseudo: if !moveAllowedByKingSafety continue...
+	// This allows us to avoid computing rays, making and unmaking move often
 
 	for _, move := range pseudo {
 		if move.Flag == KingCastle || move.Flag == QueenCastle {
@@ -273,11 +286,7 @@ func GenerateMoves(position *Position) []Move {
 		kingSquare := position.FindKing(player)
 
 		// Handles normal king safety and the final castling square.
-		kingAttacked := isSquareAttackedBy(
-			position,
-			kingSquare,
-			opponent,
-		)
+		kingAttacked := isSquareAttackedBy(position, kingSquare, opponent)
 		UnmakeMove(position, move, undo)
 		if kingAttacked {
 			continue
