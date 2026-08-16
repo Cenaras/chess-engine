@@ -1,9 +1,5 @@
 package game
 
-import (
-	"slices"
-)
-
 var rookDirections = []Direction{
 	// S, N, W, E
 	{-1, 0}, {1, 0}, {0, -1}, {0, 1},
@@ -13,14 +9,30 @@ var bishopDirections = []Direction{
 	{1, -1}, {1, 1}, {-1, 1}, {-1, -1},
 }
 
-var kingDirection = [...]Direction{
+// Precomputes, for each square on the board, all possible target squares
+// according to the direction offsets
+func precomputeMoves(dirOffsets []Direction) [64][]Square {
+	var moves [64][]Square
+	for idx := 0; idx < 64; idx++ {
+		square := Square(idx)
+		for _, dir := range dirOffsets {
+			targetSquare, success := MoveDirection(square, dir)
+			if !success {
+				continue
+			}
+			moves[idx] = append(moves[idx], targetSquare)
+		}
+	}
+	return moves
+}
+
+var kingDirection = []Direction{
 	{1, 0}, {1, 1}, {1, -1},
 	{0, 1}, {0, -1},
 	{-1, 0}, {-1, 1}, {-1, -1},
 }
-
-// TODO: Precompute target squares for every square
-var knightOffsets = [...]Direction{
+var kingMoves [64][]Square = precomputeMoves(kingDirection)
+var knightOffsets = []Direction{
 	// NNW, NNE,
 	{2, -1}, {2, 1},
 	// NWW, NEE,
@@ -30,24 +42,7 @@ var knightOffsets = [...]Direction{
 	// SSW, SSE
 	{-2, -1}, {-2, 1},
 }
-
-// Precomputed knight squares
-var knightMoves [64][]Square = initializeKnightMoves()
-
-func initializeKnightMoves() [64][]Square {
-	var knightMoves [64][]Square
-	for idx := 0; idx < 64; idx++ {
-		square := Square(idx)
-		for _, dir := range knightOffsets {
-			targetSquare, success := MoveDirection(square, dir)
-			if !success {
-				continue
-			}
-			knightMoves[idx] = append(knightMoves[idx], targetSquare)
-		}
-	}
-	return knightMoves
-}
+var knightMoves [64][]Square = precomputeMoves(knightOffsets)
 
 // Generate all pseudo legal moves for the current position
 func pseudoLegalMove(position *Position) []Move {
@@ -120,11 +115,7 @@ func genSlidingPieceMoves(startSquare Square, color Player, moves []Move, positi
 
 func genKingMoves(startSquare Square, color Player, moves []Move, position *Position) []Move {
 	// Regular moves
-	for _, direction := range kingDirection {
-		targetSquare, success := MoveDirection(startSquare, direction)
-		if !success {
-			continue
-		}
+	for _, targetSquare := range kingMoves[startSquare] {
 		targetPiece := position.GetPieceAt(targetSquare)
 		targetColor := targetPiece.Player()
 		// Empty or opponent piece
@@ -344,8 +335,7 @@ func isSquareAttackedBy(position *Position, square Square, attacker Player) bool
 	if scanRay(rookDirections, ROOK) || scanRay(bishopDirections, BISHOP) {
 		return true
 	}
-	// Check knights (TODO: Precompute moves + isAttackedByKnights)
-	// Also duplicate code of genKnightMoves
+	// Check knights
 	for _, targetSquare := range knightMoves[square] {
 		piece := position.GetPieceAt(targetSquare)
 		if piece.Player() == attacker && piece.Type() == KNIGHT {
@@ -354,19 +344,14 @@ func isSquareAttackedBy(position *Position, square Square, attacker Player) bool
 	}
 
 	// Check kings (also probably duplicate of king movement)
-	for _, direction := range kingDirection {
-		targetSquare, success := MoveDirection(square, direction)
-		if !success {
-			continue
-		}
-
+	for _, targetSquare := range kingMoves[square] {
 		piece := position.GetPieceAt(targetSquare)
 		if piece.Player() == attacker && piece.Type() == KING {
 			return true
 		}
 	}
 
-	// HANDLE PAWNS
+	// Check pawns
 	var pawnAttackers [2]Direction
 	if attacker == WHITE.Player() {
 		pawnAttackers = [2]Direction{
@@ -390,35 +375,6 @@ func isSquareAttackedBy(position *Position, square Square, attacker Player) bool
 		}
 	}
 	return false
-}
-
-// !!!!!! TEMPORARY JUST TO GET TESTS GOING -- THIS SHOULD BE REDESIGNED!!!!!!
-func isSquareAttackedTEMP(position *Position, square Square, attacker Player) bool {
-	// Position contains a fixed [64]Piece array, so this gives us
-	// an independent temporary board.
-	temp := *position
-
-	temp.PlayerToMove = attacker
-
-	// We need something on the target square so pawn capture
-	// generation considers it an attack.
-	if temp.GetPieceAt(square) == NONE {
-		temp.SetPieceAt(
-			KING|Piece(attacker.Opponent()),
-			square,
-		)
-	}
-
-	responses := pseudoLegalMove(&temp)
-
-	return slices.ContainsFunc(responses, func(move Move) bool {
-		// Castling itself is not an attack.
-		if move.Flag == KingCastle || move.Flag == QueenCastle {
-			return false
-		}
-
-		return move.To == square
-	})
 }
 
 func MakeMove(p *Position, move Move) UndoMoveState {
