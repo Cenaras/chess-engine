@@ -31,3 +31,4 @@ BooleanOverErrorForOOB:         6.98s   (Constructing an error after every illeg
 
 **Starting Position (6), Position 3 (6), Position 4 (6), Position 6 (5)**
 BooleanOverErrorForOOB         63.2s
+PrecomputeKnightMoves          59.7s

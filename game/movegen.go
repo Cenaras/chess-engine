@@ -31,6 +31,24 @@ var knightOffsets = [...]Direction{
 	{-2, -1}, {-2, 1},
 }
 
+// Precomputed knight squares
+var knightMoves [64][]Square = initializeKnightMoves()
+
+func initializeKnightMoves() [64][]Square {
+	var knightMoves [64][]Square
+	for idx := 0; idx < 64; idx++ {
+		square := Square(idx)
+		for _, dir := range knightOffsets {
+			targetSquare, success := MoveDirection(square, dir)
+			if !success {
+				continue
+			}
+			knightMoves[idx] = append(knightMoves[idx], targetSquare)
+		}
+	}
+	return knightMoves
+}
+
 // Generate all pseudo legal moves for the current position
 func pseudoLegalMove(position *Position) []Move {
 	// loop every single piece, compute all its pseudolegal moves
@@ -220,21 +238,13 @@ func genPawnMoves(startSquare Square, color Player, moves []Move, position *Posi
 	return moves
 }
 
-// Appends all pseudo-legal knight moves to the move list
 func genKnightMoves(startSquare Square, color Player, moves []Move, position *Position) []Move {
-	// ensure that the knight doesn't move off the board
-	for _, direction := range knightOffsets {
-
-		targetSquare, success := MoveDirection(startSquare, direction)
-		if !success {
-			continue
-		}
+	for _, targetSquare := range knightMoves[startSquare] {
 		piece := position.GetPieceAt(targetSquare)
 		targetColor := piece.Player()
 		if !IsSameColor(color, targetColor) {
 			moves = append(moves, Move{startSquare, targetSquare, NormalMove})
 		}
-
 	}
 	return moves
 }
@@ -336,11 +346,7 @@ func isSquareAttackedBy(position *Position, square Square, attacker Player) bool
 	}
 	// Check knights (TODO: Precompute moves + isAttackedByKnights)
 	// Also duplicate code of genKnightMoves
-	for _, dir := range knightOffsets {
-		targetSquare, success := MoveDirection(square, dir)
-		if !success {
-			continue
-		}
+	for _, targetSquare := range knightMoves[square] {
 		piece := position.GetPieceAt(targetSquare)
 		if piece.Player() == attacker && piece.Type() == KNIGHT {
 			return true
