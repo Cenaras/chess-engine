@@ -267,30 +267,18 @@ func GenerateMoves(position *Position) []Move {
 			if isSquareAttackedBy(position, move.From, opponent) {
 				continue
 			}
-
 			// Cannot castle through check.
 			offset := 1
 			if move.Flag == QueenCastle {
 				offset = -1
 			}
-
 			throughSquare := Square(int(move.From) + offset)
-
-			// Move only the king to the intermediate square in a temporary
-			// position so removing it from move.From can reveal attacks.
-			temp := *position
-			king := temp.GetPieceAt(move.From)
-
-			temp.SetPieceAt(NONE, move.From)
-			temp.SetPieceAt(king, throughSquare)
-
-			if isSquareAttackedBy(&temp, throughSquare, opponent) {
+			if isSquareAttackedBy(position, throughSquare, opponent) {
 				continue
 			}
 		}
 
 		undo := MakeMove(position, move)
-
 		kingSquare := position.FindKing(player)
 
 		// Handles normal king safety and the final castling square.
