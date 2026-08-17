@@ -44,6 +44,11 @@ func FindBestMove(postiion *Position, depth int) Move {
 	bestScore := -Infinity
 	var bestMove Move
 	for _, move := range moves {
+
+		if move.From == 6 && move.To == 62 {
+			fmt.Print("!")
+		}
+
 		undo := MakeMove(postiion, move)
 		score := -search(postiion, depth-1)
 		UnmakeMove(postiion, move, undo)
@@ -59,12 +64,21 @@ func FindBestMove(postiion *Position, depth int) Move {
 
 // Simple implementation of NegaMax search
 func search(position *Position, depth int) int {
+
+	// Even at depth 0, if we are in check we must calculate if
+	// we are checkmated or not
 	if depth == 0 {
+		if IsKingInCheck(position, position.PlayerToMove) {
+			moves := GenerateMoves(position)
+			if len(moves) == 0 {
+				return -Infinity
+			}
+		}
+		// If not, simply evaluate the position here
 		return EvaluatePosition(position)
 	}
-	bestScore := -Infinity
-	moves := GenerateMoves(position)
 
+	moves := GenerateMoves(position)
 	if len(moves) == 0 {
 		// Checkmake
 		if IsKingInCheck(position, position.PlayerToMove) {
@@ -73,6 +87,7 @@ func search(position *Position, depth int) int {
 		// Stalemate
 		return 0
 	}
+	bestScore := -Infinity
 
 	for _, move := range moves {
 		undo := MakeMove(position, move)

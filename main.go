@@ -9,7 +9,7 @@ import (
 func main() {
 	position := fen.LoadFenPosition(fen.StartingFEN)
 	// position := fen.LoadFenPosition(qwe)
-	depth := 2
+	depth := 4
 	totalMoves := 0
 
 	for {
@@ -32,7 +32,7 @@ func main() {
 		totalMoves++
 
 		// DEBUGGING
-		if totalMoves > 10 {
+		if totalMoves > 250 {
 			break
 		}
 
