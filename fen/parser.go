@@ -16,7 +16,7 @@ func LoadFenPosition(fen string) game.Position {
 
 func parseFen(fen string) game.Position {
 	position := game.Position{
-		PossibleEnPassantCapture: game.NoSquare,
+		PossibleEnPassantCapture: game.NO_SQUARE,
 	}
 
 	parts := strings.Fields(fen)
@@ -94,7 +94,7 @@ func parseFen(fen string) game.Position {
 			}
 
 			square := game.Square(rank*8 + file)
-			position.Board[square] = piece
+			position.SetPieceAt(piece, square)
 			file++
 		}
 	}

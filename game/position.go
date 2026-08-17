@@ -32,6 +32,13 @@ const (
 
 type Player uint8
 
+func PlayerToString(player Player) string {
+	if player == WHITE.Player() {
+		return "White"
+	}
+	return "Black"
+}
+
 type CastleRights uint8
 
 const (
@@ -68,12 +75,13 @@ const (
 )
 
 type Square uint8 // 0..64
-const NoSquare Square = 64
+const NO_SQUARE Square = 64
+const TOTAL_SQUARES Square = 64
 
 // TODO: Encapsulate fields to avoid exposing datatype?
 // TODO: Represent flags using more compact notation
 type Position struct {
-	Board                    [64]Piece
+	board                    [64]Piece
 	PlayerToMove             Player
 	CastleRights             CastleRights
 	PossibleEnPassantCapture Square
@@ -89,11 +97,11 @@ func (p Player) Opponent() Player {
 }
 
 func (p *Position) GetPieceAt(square Square) Piece {
-	return p.Board[square]
+	return p.board[square]
 }
 
 func (p *Position) SetPieceAt(piece Piece, square Square) {
-	p.Board[square] = piece
+	p.board[square] = piece
 }
 
 func (p *Position) FindKing(player Player) Square {
@@ -121,6 +129,20 @@ type Move struct {
 	From Square
 	To   Square
 	Flag MoveFlag
+}
+
+func PrintMove(move Move) {
+	fmt.Printf(
+		"%s -> %s\n",
+		SquareToString(move.From),
+		SquareToString(move.To),
+	)
+}
+func SquareToString(square Square) string {
+	file := byte('a' + square%8)
+	rank := byte('1' + square/8)
+
+	return string([]byte{file, rank})
 }
 
 type UndoMoveState struct {

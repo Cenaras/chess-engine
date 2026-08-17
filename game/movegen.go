@@ -11,9 +11,9 @@ var bishopDirections = []Direction{
 
 // Precomputes, for each square on the board, all possible target squares
 // according to the direction offsets
-func precomputeMoves(dirOffsets []Direction) [64][]Square {
-	var moves [64][]Square
-	for idx := 0; idx < 64; idx++ {
+func precomputeMoves(dirOffsets []Direction) [TOTAL_SQUARES][]Square {
+	var moves [TOTAL_SQUARES][]Square
+	for idx := 0; idx < int(TOTAL_SQUARES); idx++ {
 		square := Square(idx)
 		for _, dir := range dirOffsets {
 			targetSquare, success := MoveDirection(square, dir)
@@ -31,7 +31,7 @@ var kingDirection = []Direction{
 	{0, 1}, {0, -1},
 	{-1, 0}, {-1, 1}, {-1, -1},
 }
-var kingMoves [64][]Square = precomputeMoves(kingDirection)
+var kingMoves [TOTAL_SQUARES][]Square = precomputeMoves(kingDirection)
 var knightOffsets = []Direction{
 	// NNW, NNE,
 	{2, -1}, {2, 1},
@@ -42,7 +42,7 @@ var knightOffsets = []Direction{
 	// SSW, SSE
 	{-2, -1}, {-2, 1},
 }
-var knightMoves [64][]Square = precomputeMoves(knightOffsets)
+var knightMoves [TOTAL_SQUARES][]Square = precomputeMoves(knightOffsets)
 
 var whitePawnForwardMoves = precomputeMoves([]Direction{{1, 0}})
 var blackPawnForwardMoves = precomputeMoves([]Direction{{-1, 0}})
@@ -59,8 +59,7 @@ var blackPawnAttackers = precomputeMoves([]Direction{{1, -1}, {1, 1}})
 func pseudoLegalMove(position *Position) []Move {
 	// loop every single piece, compute all its pseudolegal moves
 	moves := make([]Move, 0, 64) // preallocate 64
-	board := position.Board
-	for idx := range board {
+	for idx := range TOTAL_SQUARES {
 		startSquare := Square(idx)
 		piece := position.GetPieceAt(startSquare)
 		pieceType := piece.Type()
@@ -245,6 +244,11 @@ func genKnightMoves(startSquare Square, color Player, moves []Move, position *Po
 	 	- If we are in check, 1) move to safe square, 2) capture attacker, 3) block
 		- Requires pinned pieces as well to check if we can block
 		- Disallow all moves that don't satisfy this
+	-  Once we switch to bitboards, move away from pseudo-->legal moves,
+		but only calc legal moves directly, restricting based on pins etc:
+		https://peterellisjones.com/posts/generating-legal-chess-moves-efficiently/
+		 - start calcing king safety/moves. Then from that, apply bitboard logic
+		 to generate rest of the moves
 */
 
 // Generate all legal moves for the position
@@ -364,6 +368,17 @@ func isSquareAttackedBy(position *Position, square Square, attacker Player) bool
 	return false
 }
 
+func IsKingInCheck(position *Position, player Player) bool {
+	kingSquare := position.WhiteKingSquare
+	if player == BLACK.Player() {
+		kingSquare = position.BlackKingSquare
+	}
+	if isSquareAttackedBy(position, kingSquare, player.Opponent()) {
+		return true
+	}
+	return false
+}
+
 func MakeMove(p *Position, move Move) UndoMoveState {
 	from := move.From
 	to := move.To
@@ -390,7 +405,7 @@ func MakeMove(p *Position, move Move) UndoMoveState {
 
 	// Update the position state
 	// Clear the en-passant move (will be reset if the move was double pawn)
-	p.PossibleEnPassantCapture = NoSquare
+	p.PossibleEnPassantCapture = NO_SQUARE
 	switch moveFlag {
 	case DoublePawnPush:
 		// the square behind the pawn is now a possible en-passant capture
