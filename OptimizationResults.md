@@ -2,6 +2,12 @@
 
 This small document holds some notes on how the performance has changed of perft tests, move generation etc...
 
+We distinguish between two different types of performance/evaluation tests:
+ - Perft tests: Performance test, purely for generating all legal moves
+ - Engine evaluation: How well the engine performs against a previous variant
+
+
+
 ### Run Profiling
 Run the profiling tool with the following example command: (exclude -run to run all tests)
 `go test ./game -run "^TestStartingFen$" -cpuprofile=cpu.prof -count=1`

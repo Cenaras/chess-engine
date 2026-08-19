@@ -403,6 +403,10 @@ func MakeMove(p *Position, move Move) UndoMoveState {
 	p.SetPieceAt(movingPiece, to)
 	p.SetPieceAt(NONE, from)
 
+	if movingPiece.Type() == PAWN || capturedPiece.Type() != NONE {
+		p.HalfMoveClock = 0
+	}
+
 	// Update the position state
 	// Clear the en-passant move (will be reset if the move was double pawn)
 	p.PossibleEnPassantCapture = NO_SQUARE
@@ -492,8 +496,9 @@ func MakeMove(p *Position, move Move) UndoMoveState {
 		}
 	}
 
-	// Flip player to move
+	// Flip player to move and increment 50-move rule
 	p.PlayerToMove = p.PlayerToMove.Opponent()
+	p.HalfMoveClock++
 	return undoMoveState
 
 }
@@ -552,4 +557,5 @@ func UnmakeMove(p *Position, move Move, undo UndoMoveState) {
 	}
 
 	p.PlayerToMove = p.PlayerToMove.Opponent()
+	p.HalfMoveClock--
 }

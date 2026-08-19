@@ -39,19 +39,14 @@ black is also evaluated as positive on their turn
 */
 
 // Find best move in the current position. This is the root of our search.
-func FindBestMove(postiion *Position, depth int) Move {
-	moves := GenerateMoves(postiion)
+func FindBestMove(position *Position, depth int) Move {
+	moves := GenerateMoves(position)
 	bestScore := -Infinity
 	var bestMove Move
 	for _, move := range moves {
-
-		if move.From == 6 && move.To == 62 {
-			fmt.Print("!")
-		}
-
-		undo := MakeMove(postiion, move)
-		score := -search(postiion, depth-1)
-		UnmakeMove(postiion, move, undo)
+		undo := MakeMove(position, move)
+		score := -search(position, depth-1)
+		UnmakeMove(position, move, undo)
 
 		if score > bestScore {
 			bestScore = score

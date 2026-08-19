@@ -3,7 +3,7 @@ package fen
 import (
 	"chess/game"
 	"fmt"
-	"os"
+	"strconv"
 	"strings"
 )
 
@@ -173,16 +173,17 @@ func parseFen(fen string) game.Position {
 	}
 
 	// TODO: halfmove/fullmove clocks
-	// parts[4]
+	halfMove, err := strconv.Atoi(parts[4])
+	if err != nil {
+		panic(fmt.Sprintf(
+			"FEN parse error: half-move clock non parseable %d",
+			halfMove,
+		))
+	}
+
+	position.HalfMoveClock = halfMove
+
 	// parts[5]
 
 	return position
-}
-
-func readFile(path string) string {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		panic(err)
-	}
-	return string(data)
 }

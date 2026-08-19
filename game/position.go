@@ -87,6 +87,7 @@ type Position struct {
 	PossibleEnPassantCapture Square
 	WhiteKingSquare          Square
 	BlackKingSquare          Square
+	HalfMoveClock            int
 }
 
 func (p Player) Opponent() Player {

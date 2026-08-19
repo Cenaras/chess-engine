@@ -22,3 +22,9 @@ Use these tests to verify the overall implementation and performance results aft
 Run all perft tests with:
 `go test ./game/perft_test.go`
 Note: This may take a while. 
+
+
+# TODO:
+ - https://github.com/Disservin/fastchess for testing
+ - implement 50 move rule and 3fold repetition
+ - consider refactoring; then release v0.1

@@ -144,3 +144,23 @@ func TestFindBestMoveMateInTwo5(t *testing.T) {
 		"e4",
 	)
 }
+
+func Test50MoveRuleObeyedByEval(t *testing.T) {
+	position := fen.LoadFenPosition("8/5k2/3p4/1p1Pp2p/pP2Pp1P/P4P1K/8/8 b - - 99 50")
+	move := game.FindBestMove(&position, 1)
+	game.MakeMove(&position, move)
+	score := game.EvaluatePosition(&position)
+	if score != 0 {
+		t.Fatalf("expected position to be draw, but score was %d", score)
+	}
+}
+
+func TestWhiteDrawsDeadLostWith50MoveRule(t *testing.T) {
+	requireBestMove(
+		t,
+		"k7/8/8/2Q5/6q1/Pr5q/8/K7 w - - 99 50",
+		1,
+		"a1",
+		"a2",
+	)
+}

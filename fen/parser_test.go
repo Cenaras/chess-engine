@@ -20,6 +20,16 @@ func TestFenBoardOrientation(t *testing.T) {
 		)
 	}
 }
+
+func TestHalfMoveClock(t *testing.T) {
+	position := parseFen("8/5k2/3p4/1p1Pp2p/pP2Pp1P/P4P1K/8/8 b - - 99 50")
+	if position.HalfMoveClock != 99 {
+		t.Fatalf(
+			"expected half move clock to be 99, but was %d",
+			position.HalfMoveClock)
+	}
+}
+
 func TestFenEnPassantOrientation(t *testing.T) {
 	position := parseFen(
 		"8/8/8/8/8/8/8/8 w - e3 0 1",
