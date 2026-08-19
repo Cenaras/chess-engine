@@ -164,3 +164,19 @@ func TestWhiteDrawsDeadLostWith50MoveRule(t *testing.T) {
 		"a2",
 	)
 }
+
+func TestPawnMoveResets50MoveRule(t *testing.T) {
+	position := fen.LoadFenPosition("k7/8/8/2Q5/6q1/Pr5q/8/K7 w - - 99 50")
+	game.MakeMove(&position, game.Move{From: 16, To: 24, Flag: game.NormalMove})
+	if position.HalfMoveClock != 1 {
+		t.Fatalf("expected half move clock to reset after pawn move")
+	}
+}
+
+func TestCaptureResets50MoveRule(t *testing.T) {
+	position := fen.LoadFenPosition("k7/8/8/8/8/P6q/1r6/K7 w - - 99 50")
+	game.MakeMove(&position, game.Move{From: 0, To: 9, Flag: game.NormalMove})
+	if position.HalfMoveClock != 1 {
+		t.Fatalf("expected half move clock to reset after pawn move")
+	}
+}
