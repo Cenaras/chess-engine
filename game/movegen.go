@@ -499,8 +499,13 @@ func MakeMove(p *Position, move Move) UndoMoveState {
 	// Flip player to move and increment 50-move rule
 	p.PlayerToMove = p.PlayerToMove.Opponent()
 	p.HalfMoveClock++
-	return undoMoveState
 
+	// and record the newly reached position in the zobrist table
+	// for 3 fold repetition. This must happen after switching player,
+	// as after making the move, it is black's turn
+	newHash := ZobristHash(p)
+	p.History = append(p.History, newHash)
+	return undoMoveState
 }
 
 func UnmakeMove(p *Position, move Move, undo UndoMoveState) {
@@ -555,6 +560,9 @@ func UnmakeMove(p *Position, move Move, undo UndoMoveState) {
 	} else {
 		p.BlackKingSquare = undo.OldKingSquare
 	}
+
+	// Pop last move off the zobrist history
+	p.popHistory()
 
 	p.PlayerToMove = p.PlayerToMove.Opponent()
 	p.HalfMoveClock--

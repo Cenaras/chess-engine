@@ -42,6 +42,7 @@ func PlayerToString(player Player) string {
 type CastleRights uint8
 
 const (
+	NoCastleRights CastleRights = 0b0000
 	WhiteKingSide  CastleRights = 0b0001
 	WhiteQueenSide CastleRights = 0b0010
 	BlackKingSide  CastleRights = 0b0100
@@ -88,6 +89,15 @@ type Position struct {
 	WhiteKingSquare          Square
 	BlackKingSquare          Square
 	HalfMoveClock            int
+	History                  []uint64 // zobrist hash of occurred moves
+}
+
+func (p *Position) GetCurrentPositionHash() uint64 {
+	return p.History[len(p.History)-1]
+}
+
+func (p *Position) popHistory() {
+	p.History = p.History[:len(p.History)-1]
 }
 
 func (p Player) Opponent() Player {

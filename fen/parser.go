@@ -11,6 +11,7 @@ const StartingFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
 func LoadFenPosition(fen string) game.Position {
 	position := parseFen(fen)
+	position.History = append(position.History, game.ZobristHash(&position))
 	return position
 }
 
@@ -131,6 +132,7 @@ func parseFen(fen string) game.Position {
 		case 'q':
 			position.CastleRights |= game.BlackQueenSide
 		case '-':
+			position.CastleRights = game.NoCastleRights
 			// No castling rights.
 		default:
 			panic(fmt.Sprintf(
@@ -172,7 +174,6 @@ func parseFen(fen string) game.Position {
 			game.Square(rankIndex*8 + fileIndex)
 	}
 
-	// TODO: halfmove/fullmove clocks
 	halfMove, err := strconv.Atoi(parts[4])
 	if err != nil {
 		panic(fmt.Sprintf(

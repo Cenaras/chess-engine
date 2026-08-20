@@ -1,7 +1,5 @@
 package game
 
-import "fmt"
-
 const pawnValue int = 100
 const knightValue int = 320
 const bishopValue int = 330
@@ -15,15 +13,8 @@ const (
 // Due to limited depth + evaluation only considering piece count / position
 // we cannot convert endgames.
 
+// Static Evaluation: Does not consider 3-fold repetition or 50 move rule -- see search.go#search
 func EvaluatePosition(position *Position) int {
-
-	// 100-ply without capture or pawn advancement is a draw
-	if position.HalfMoveClock == 100 {
-		return 0
-	}
-
-	fmt.Println(position.HalfMoveClock)
-
 	score := 0
 	// Count pieces
 	score += getMaterialCount(position)

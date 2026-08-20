@@ -3,6 +3,7 @@ package game_test
 // LLM GENERATED TESTS
 
 import (
+	"fmt"
 	"testing"
 
 	"chess/fen"
@@ -145,16 +146,6 @@ func TestFindBestMoveMateInTwo5(t *testing.T) {
 	)
 }
 
-func Test50MoveRuleObeyedByEval(t *testing.T) {
-	position := fen.LoadFenPosition("8/5k2/3p4/1p1Pp2p/pP2Pp1P/P4P1K/8/8 b - - 99 50")
-	move := game.FindBestMove(&position, 1)
-	game.MakeMove(&position, move)
-	score := game.EvaluatePosition(&position)
-	if score != 0 {
-		t.Fatalf("expected position to be draw, but score was %d", score)
-	}
-}
-
 func TestWhiteDrawsDeadLostWith50MoveRule(t *testing.T) {
 	requireBestMove(
 		t,
@@ -178,5 +169,115 @@ func TestCaptureResets50MoveRule(t *testing.T) {
 	game.MakeMove(&position, game.Move{From: 0, To: 9, Flag: game.NormalMove})
 	if position.HalfMoveClock != 1 {
 		t.Fatalf("expected half move clock to reset after pawn move")
+	}
+}
+func TestFindBestMoveDrawsByThreefoldRepetition(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping 8-deep tests in short mode")
+	}
+	requireBestMove(
+		t,
+		"qrr4k/5Q2/4K3/5B2/8/8/7r/8 w - - 0 1",
+		8,
+		"f7",
+		"f6",
+	)
+}
+
+func TestZobristSameAfterCycle(t *testing.T) {
+	position := fen.LoadFenPosition(
+		"qrr4k/5Q2/4K3/5B2/8/8/7r/8 w - - 0 1",
+	)
+
+	initialHash := game.ZobristHash(&position)
+
+	moves := []game.Move{
+		{
+			From: searchSquare("f7"),
+			To:   searchSquare("f6"),
+			Flag: game.NormalMove,
+		},
+		{
+			From: searchSquare("h8"),
+			To:   searchSquare("g8"),
+			Flag: game.NormalMove,
+		},
+		{
+			From: searchSquare("f6"),
+			To:   searchSquare("f7"),
+			Flag: game.NormalMove,
+		},
+		{
+			From: searchSquare("g8"),
+			To:   searchSquare("h8"),
+			Flag: game.NormalMove,
+		},
+	}
+
+	for _, move := range moves {
+		game.MakeMove(&position, move)
+	}
+
+	finalHash := game.ZobristHash(&position)
+
+	if initialHash != finalHash {
+		t.Fatalf(
+			"expected same hash after cycle:\ninitial: %x\nfinal:   %x",
+			initialHash,
+			finalHash,
+		)
+	}
+}
+
+func TestThreefoldRepetition(t *testing.T) {
+	position := fen.LoadFenPosition(
+		"qrr4k/5Q2/4K3/5B2/8/8/7r/8 w - - 0 1",
+	)
+
+	cycle := []game.Move{
+		{
+			From: searchSquare("f7"),
+			To:   searchSquare("f6"),
+			Flag: game.NormalMove,
+		},
+		{
+			From: searchSquare("h8"),
+			To:   searchSquare("g8"),
+			Flag: game.NormalMove,
+		},
+		{
+			From: searchSquare("f6"),
+			To:   searchSquare("f7"),
+			Flag: game.NormalMove,
+		},
+		{
+			From: searchSquare("g8"),
+			To:   searchSquare("h8"),
+			Flag: game.NormalMove,
+		},
+	}
+
+	// Position has now occurred twice.
+	for _, move := range cycle {
+		game.MakeMove(&position, move)
+		if game.ZobristHash(&position) != position.GetCurrentPositionHash() {
+			fmt.Print("AAAA")
+		}
+	}
+
+	if game.IsThreefoldRepetition(&position) {
+		t.Fatal("position should only have occurred twice")
+	}
+
+	// Position has now occurred three times.
+	for _, move := range cycle {
+		game.MakeMove(&position, move)
+	}
+
+	val := game.ZobristHash(&position)
+	fmt.Print(val)
+
+	if !game.IsThreefoldRepetition(&position) {
+		t.Fatal("expected threefold repetition")
 	}
 }

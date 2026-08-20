@@ -38,7 +38,5 @@ func main() {
 
 		// TODO: Make a small test engine, plays x games counts W/L/D
 		// Use opening book for random games
-
 	}
-
 }

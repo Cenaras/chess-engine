@@ -1,9 +1,5 @@
 package game
 
-import (
-	"fmt"
-)
-
 // negamax algorithm: https://chessprogramming.org/Negamax
 
 /*Chess search is a minimax problem. The idea is as follows:
@@ -53,34 +49,31 @@ func FindBestMove(position *Position, depth int) Move {
 			bestMove = move
 		}
 	}
-	fmt.Printf("Score for bestMove: %d\n", bestScore)
 	return bestMove
 }
 
 // Simple implementation of NegaMax search
 func search(position *Position, depth int) int {
-
-	// Even at depth 0, if we are in check we must calculate if
-	// we are checkmated or not
-	if depth == 0 {
-		if IsKingInCheck(position, position.PlayerToMove) {
-			moves := GenerateMoves(position)
-			if len(moves) == 0 {
-				return -Infinity
-			}
-		}
-		// If not, simply evaluate the position here
-		return EvaluatePosition(position)
+	// Check for terminal draw rules
+	if IsThreefoldRepetition(position) {
+		return 0
+	}
+	if position.HalfMoveClock >= 100 {
+		return 0
 	}
 
 	moves := GenerateMoves(position)
+	// Terminal positions
 	if len(moves) == 0 {
-		// Checkmake
 		if IsKingInCheck(position, position.PlayerToMove) {
-			return -Infinity
+			return -Infinity // checkmate
 		}
-		// Stalemate
-		return 0
+		return 0 // stalemate
+	}
+
+	// If non-terminal position, evaluate the position
+	if depth == 0 {
+		return EvaluatePosition(position)
 	}
 	bestScore := -Infinity
 
@@ -94,4 +87,22 @@ func search(position *Position, depth int) int {
 		UnmakeMove(position, move, undo)
 	}
 	return bestScore
+}
+
+func IsThreefoldRepetition(position *Position) bool {
+	history := position.History
+	current := position.GetCurrentPositionHash()
+
+	occurrences := 1
+	// Why -3?: -1 is the current position. -2 is opponents turn (always diff from current ) as
+	// zobrist considers the playerToMove
+	for i := len(history) - 3; i >= 0; i -= 2 {
+		if history[i] == current {
+			occurrences++
+			if occurrences == 3 {
+				return true
+			}
+		}
+	}
+	return false
 }
