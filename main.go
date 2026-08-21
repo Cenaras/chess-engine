@@ -3,10 +3,14 @@ package main
 import (
 	"chess/fen"
 	"chess/game"
+	"chess/uci"
 	"fmt"
 )
 
 func main() {
+
+	uci.StartUCI()
+
 	position := fen.LoadFenPosition(fen.StartingFEN)
 	// position := fen.LoadFenPosition(qwe)
 	depth := 4
