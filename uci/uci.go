@@ -11,6 +11,8 @@ import (
 	"strings"
 )
 
+var position game.Position
+
 const EngineName string = "CenEngine"
 
 func StartUCI() {
@@ -18,6 +20,9 @@ func StartUCI() {
 	reader := bufio.NewReader(os.Stdin)
 	for {
 		text, _ := reader.ReadString('\n')
+		text = strings.TrimSpace(text)
+
+		fmt.Fprintf(os.Stderr, "Reading %s\n", text)
 		if strings.HasPrefix(text, string(Position)) {
 			inputPosition(text)
 		}
@@ -27,7 +32,6 @@ func StartUCI() {
 			inputUCI()
 		case string(IsReady):
 			inputIsReady()
-
 		}
 	}
 }
@@ -35,6 +39,8 @@ func StartUCI() {
 func inputUCI() {
 	fmt.Printf("id name %s\n", EngineName)
 	fmt.Println("id author Cenaras")
+	// TODO: Any engine options?
+	fmt.Println("uciok")
 
 }
 func inputIsReady() {
@@ -44,39 +50,49 @@ func inputIsReady() {
 }
 func inputPosition(input string) {
 	// position [fen <fenstring> | startpos ] moves <move 1>, ..., <move n>
-	cmd := strings.Split(input, " ")
-	firstArg := cmd[1]
-	var position game.Position
+	cmd := strings.Fields(input)
+	if len(cmd) < 2 {
+		panic("invalid")
+	}
+	var next int
 
-	switch firstArg {
-	case "fen":
-		panic("Not implemented")
-		// fen := cmd[2]
-		// parse the fen
+	switch cmd[1] {
 	case "startpos":
 		position = fen.LoadFenPosition(fen.StartingFEN)
+		next = 2
+	case "fen":
+		if len(cmd) < 8 {
+			panic("invalid")
+		}
+		position = fen.LoadFenPosition(strings.Join(cmd[2:8], " "))
+		next = 8
+	default:
+		panic("invalid")
 	}
-	if !(cmd[2] == "moves") {
-		panic("arbitrary fen not supported")
+
+	if next == len(cmd) {
+		return
+	}
+
+	if cmd[next] != "moves" {
+		panic("expected moves !")
 	}
 
 	// Parse all the moves in the list after "moves" command
-	for i := 3; i < len(cmd); i++ {
-		moveNotation := cmd[i]
-		move, err := FindMoveFromUCI(&position, moveNotation)
+	for _, notation := range cmd[:next+1] {
+		move, err := FindMoveFromUCI(&position, notation)
 		if err != nil {
 			panic("invalid uci move")
 		}
 		game.MakeMove(&position, move)
 	}
-
 }
 func inputGo() {}
 
 // Finds the move from game, corresponding to the algebraic notation string.
 // As all moves are valid, no verification needs to be done besides the notation structure
 func FindMoveFromUCI(position *game.Position, notation string) (game.Move, error) {
-	if len(notation) != 4 || len(notation) != 5 {
+	if len(notation) != 4 && len(notation) != 5 {
 		return game.Move{}, fmt.Errorf("invalid UCI move %q", notation)
 	}
 
