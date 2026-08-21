@@ -9,4 +9,5 @@ const (
 	Position   UCICommand = "position"
 	Go         UCICommand = "go"
 	SetOptions UCICommand = "setoptions"
+	Quit       UCICommand = "quit"
 )

@@ -6,12 +6,23 @@ import (
 	"bufio"
 	"chess/fen"
 	"chess/game"
+	"context"
 	"fmt"
 	"os"
+	"slices"
+	"strconv"
 	"strings"
+	"time"
 )
 
-var position game.Position
+// The engine holds the position, and the ability to cancel the search
+type Engine struct {
+	Position     game.Position
+	cancelSearch context.CancelFunc
+}
+
+// TODO: Make these methods on the engine instead
+var engine Engine = Engine{}
 
 const EngineName string = "CenEngine"
 
@@ -22,33 +33,92 @@ func StartUCI() {
 		text, _ := reader.ReadString('\n')
 		text = strings.TrimSpace(text)
 
-		fmt.Fprintf(os.Stderr, "Reading %s\n", text)
 		if strings.HasPrefix(text, string(Position)) {
-			inputPosition(text)
+			handlePosition(text)
+		}
+		if strings.HasPrefix(text, string(Go)) {
+			handleGo(text)
 		}
 
 		switch text {
 		case string(UCI):
-			inputUCI()
+			handleUCI()
 		case string(IsReady):
-			inputIsReady()
+			handleIsReady()
+		case string(Quit):
+			handleQuit()
+
 		}
 	}
 }
 
-func inputUCI() {
+func handleUCI() {
 	fmt.Printf("id name %s\n", EngineName)
 	fmt.Println("id author Cenaras")
 	// TODO: Any engine options?
 	fmt.Println("uciok")
 
 }
-func inputIsReady() {
+func handleIsReady() {
 	// TODO: Start precomputation's here! Wait for them to return.
 	fmt.Println("readyok")
-
 }
-func inputPosition(input string) {
+
+func parseGoCommand(input string) game.SearchOptions {
+	var options game.SearchOptions = game.SearchOptions{}
+	cmd := strings.Fields(input)
+	getIntOption := func(option string) int {
+		idx := slices.Index(cmd, option)
+		if idx == -1 {
+			return 0
+		}
+
+		if idx+1 >= len(cmd) {
+			panic(fmt.Sprintf("missing value for %s", option))
+		}
+
+		val, err := strconv.Atoi(cmd[idx+1])
+		if err != nil {
+			panic(fmt.Sprintf("invalid value for %s: %q", option, cmd[idx+1]))
+		}
+
+		return val
+	}
+
+	options.WhiteTime = time.Duration(getIntOption("wtime")) * time.Millisecond
+	options.BlackTime = time.Duration(getIntOption("btime")) * time.Millisecond
+
+	options.WhiteIncrement = time.Duration(getIntOption("winc")) * time.Millisecond
+	options.WhiteIncrement = time.Duration(getIntOption("binc")) * time.Millisecond
+
+	options.Depth = getIntOption("depth")
+	return options
+}
+
+func handleGo(input string) {
+	options := parseGoCommand(input)
+
+	// TODO: more/less time / calulate time based on the remainind time
+	var searchTime = 1000 * time.Millisecond
+
+	// create a cancel context, to end the seach.
+	ctx, cancel := context.WithTimeout(context.Background(), searchTime)
+	engine.cancelSearch = cancel
+
+	// Create a copy to avoid any nasty race conditions: Since
+	// searching for the best move will modify the state
+	position := engine.Position
+
+	// Start search in a new thread to avoid blocking the UCI interpreter.
+	go func() {
+		defer cancel()
+		bestMove := game.FindBestMove(&position, options, ctx)
+		notation := MoveToAlgebraic(bestMove)
+		fmt.Printf("bestmove %s\n", notation)
+	}()
+}
+
+func handlePosition(input string) {
 	// position [fen <fenstring> | startpos ] moves <move 1>, ..., <move n>
 	cmd := strings.Fields(input)
 	if len(cmd) < 2 {
@@ -58,13 +128,13 @@ func inputPosition(input string) {
 
 	switch cmd[1] {
 	case "startpos":
-		position = fen.LoadFenPosition(fen.StartingFEN)
+		engine.Position = fen.LoadFenPosition(fen.StartingFEN)
 		next = 2
 	case "fen":
 		if len(cmd) < 8 {
 			panic("invalid")
 		}
-		position = fen.LoadFenPosition(strings.Join(cmd[2:8], " "))
+		engine.Position = fen.LoadFenPosition(strings.Join(cmd[2:8], " "))
 		next = 8
 	default:
 		panic("invalid")
@@ -79,15 +149,15 @@ func inputPosition(input string) {
 	}
 
 	// Parse all the moves in the list after "moves" command
-	for _, notation := range cmd[:next+1] {
-		move, err := FindMoveFromUCI(&position, notation)
+	for _, notation := range cmd[next+1:] {
+		move, err := FindMoveFromUCI(&engine.Position, notation)
 		if err != nil {
-			panic("invalid uci move")
+			panic(fmt.Sprintf("invalid uci move %s", err.Error()))
+
 		}
-		game.MakeMove(&position, move)
+		game.MakeMove(&engine.Position, move)
 	}
 }
-func inputGo() {}
 
 // Finds the move from game, corresponding to the algebraic notation string.
 // As all moves are valid, no verification needs to be done besides the notation structure
@@ -155,6 +225,32 @@ func promotionMatches(flag game.MoveFlag, promotion byte) bool {
 	}
 }
 
+func MoveToAlgebraic(move game.Move) string {
+	fromRank, fromFile := game.SquareToRankFile(move.From)
+	toRank, toFile := game.SquareToRankFile(move.To)
+
+	notation := fmt.Sprintf(
+		"%c%c%c%c",
+		'a'+fromFile,
+		'1'+fromRank,
+		'a'+toFile,
+		'1'+toRank,
+	)
+
+	switch move.Flag {
+	case game.PromoteKnight:
+		notation += "n"
+	case game.PromoteBishop:
+		notation += "b"
+	case game.PromoteRook:
+		notation += "r"
+	case game.PromoteQueen:
+		notation += "q"
+	}
+
+	return notation
+}
+
 func AlgebraicToSquare(s string) (game.Square, error) {
 	if len(s) != 2 {
 		return game.NO_SQUARE, fmt.Errorf("invalid square: %q", s)
@@ -171,4 +267,10 @@ func AlgebraicToSquare(s string) (game.Square, error) {
 		int(rank-'1'),
 		int(file-'a'),
 	), nil
+}
+func handleQuit() {
+	// If the
+	if engine.cancelSearch != nil {
+		engine.cancelSearch()
+	}
 }

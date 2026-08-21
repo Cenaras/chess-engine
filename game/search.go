@@ -1,5 +1,11 @@
 package game
 
+import (
+	"context"
+	"fmt"
+	"time"
+)
+
 // negamax algorithm: https://chessprogramming.org/Negamax
 
 /*Chess search is a minimax problem. The idea is as follows:
@@ -34,16 +40,52 @@ to the side being evaluated -- since min requires signs flipped,
 black is also evaluated as positive on their turn
 */
 
+type SearchOptions struct {
+	WhiteTime      time.Duration
+	BlackTime      time.Duration
+	WhiteIncrement time.Duration
+	BlackIncrement time.Duration
+
+	Depth         int
+	MaxSearchTime time.Duration
+}
+
 // Find best move in the current position. This is the root of our search.
-func FindBestMove(position *Position, depth int) Move {
+func FindBestMove(position *Position, options SearchOptions, ctx context.Context) Move {
+	start := time.Now()
 	moves := GenerateMoves(position)
+
+	depth := options.Depth
 	bestScore := -Infinity
+	// TODO: May be uninitialized if search is terminated before it is updated
 	var bestMove Move
+	// TODO: Iterative deepening!
+	// For now, if depth is 0 it just means "keep going until time limit"
+	// as Time limit isn't supplied -- always assume 4...
+	if depth == 0 {
+		depth = 4
+	}
+
+	fmt.Printf(
+		"info depth %d score cp %d time %d\n",
+		depth,
+		bestScore,
+		time.Since(start).Milliseconds(),
+	)
+
 	for _, move := range moves {
 		undo := MakeMove(position, move)
-		score := -search(position, depth-1)
+		childScore, completed := search(position, depth-1, ctx)
 		UnmakeMove(position, move, undo)
 
+		// Search was terminated; quit iterating and report best result so far
+		if !completed {
+			break
+		}
+
+		score := -childScore
+
+		// At this point we know that the previous search was completed.
 		if score > bestScore {
 			bestScore = score
 			bestMove = move
@@ -53,40 +95,56 @@ func FindBestMove(position *Position, depth int) Move {
 }
 
 // Simple implementation of NegaMax search
-func search(position *Position, depth int) int {
+// If the search is terminated, we report the best score that was fully
+// evaluated
+func search(position *Position, depth int, ctx context.Context) (int, bool) {
 	// Check for terminal draw rules
 	if IsThreefoldRepetition(position) {
-		return 0
+		return 0, true
 	}
 	if position.HalfMoveClock >= 100 {
-		return 0
+		return 0, true
 	}
 
 	moves := GenerateMoves(position)
 	// Terminal positions
 	if len(moves) == 0 {
 		if IsKingInCheck(position, position.PlayerToMove) {
-			return -Infinity // checkmate
+			return -Infinity, true // checkmate
 		}
-		return 0 // stalemate
+		return 0, true // stalemate
 	}
 
 	// If non-terminal position, evaluate the position
 	if depth == 0 {
-		return EvaluatePosition(position)
+		return EvaluatePosition(position), true
 	}
 	bestScore := -Infinity
 
 	for _, move := range moves {
+		// Search was termianted before we saw the final leaves.
+		// Report that we cannot trust this evaluation.
+		if ctx.Err() != nil {
+			return 0, false
+		}
+
 		undo := MakeMove(position, move)
 		// See above explanation for why the sign is negative
-		score := -search(position, depth-1)
+		childScore, completed := search(position, depth-1, ctx)
+		UnmakeMove(position, move, undo)
+
+		if !completed {
+			return 0, false
+		}
+
+		// Negamax requires us to invert the resul -- cannot do that at the return
+		// since we are returning multiple values...
+		score := -childScore
 		if score > bestScore {
 			bestScore = score
 		}
-		UnmakeMove(position, move, undo)
 	}
-	return bestScore
+	return bestScore, true
 }
 
 func IsThreefoldRepetition(position *Position) bool {
