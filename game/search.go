@@ -66,16 +66,9 @@ func FindBestMove(position *Position, options SearchOptions, ctx context.Context
 		depth = 4
 	}
 
-	fmt.Printf(
-		"info depth %d score cp %d time %d\n",
-		depth,
-		bestScore,
-		time.Since(start).Milliseconds(),
-	)
-
 	for _, move := range moves {
 		undo := MakeMove(position, move)
-		childScore, completed := search(position, depth-1, ctx)
+		childScore, completed := search(position, depth-1, Infinity, -Infinity, ctx)
 		UnmakeMove(position, move, undo)
 
 		// Search was terminated; quit iterating and report best result so far
@@ -91,13 +84,20 @@ func FindBestMove(position *Position, options SearchOptions, ctx context.Context
 			bestMove = move
 		}
 	}
+
+	fmt.Printf(
+		"info depth %d score cp %d time %d\n",
+		depth,
+		bestScore,
+		time.Since(start).Milliseconds(),
+	)
 	return bestMove
 }
 
 // Simple implementation of NegaMax search
 // If the search is terminated, we report the best score that was fully
 // evaluated
-func search(position *Position, depth int, ctx context.Context) (int, bool) {
+func search(position *Position, depth int, alpha int, beta int, ctx context.Context) (int, bool) {
 	// Check for terminal draw rules
 	if IsThreefoldRepetition(position) {
 		return 0, true
@@ -130,7 +130,7 @@ func search(position *Position, depth int, ctx context.Context) (int, bool) {
 
 		undo := MakeMove(position, move)
 		// See above explanation for why the sign is negative
-		childScore, completed := search(position, depth-1, ctx)
+		childScore, completed := search(position, depth-1, alpha, beta, ctx)
 		UnmakeMove(position, move, undo)
 
 		if !completed {
@@ -142,6 +142,12 @@ func search(position *Position, depth int, ctx context.Context) (int, bool) {
 		score := -childScore
 		if score > bestScore {
 			bestScore = score
+			if score > alpha {
+				alpha = score
+			}
+		}
+		if score >= beta {
+			return bestScore, true
 		}
 	}
 	return bestScore, true

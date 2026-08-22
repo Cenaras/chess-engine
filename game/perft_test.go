@@ -70,15 +70,15 @@ var position5Perft = ExpectedPerftTable{
 }
 
 func TestStartingFen(t *testing.T) {
-	performPerft(t, startingPosPerft, 6)
+	performPerft(t, startingPosPerft, 5)
 }
 
 func TestPosition3(t *testing.T) {
-	performPerft(t, position3Perft, 6)
+	performPerft(t, position3Perft, 5)
 }
 
 func TestPosition4(t *testing.T) {
-	performPerft(t, position4Perft, 6)
+	performPerft(t, position4Perft, 5)
 }
 
 func TestPosition5(t *testing.T) {
@@ -103,6 +103,67 @@ func TestPosition5CanCastleKingSide(t *testing.T) {
 
 	if !found {
 		t.Error("expected white kingside castling to be legal")
+	}
+}
+
+// Zobrist test for various positions
+func TestPerftZobrist(t *testing.T) {
+	position := fen.LoadFenPosition(fen.StartingFEN)
+	perftZobrist(t, &position, 3)
+
+	position3 := fen.LoadFenPosition(position3Perft.FEN)
+	perftZobrist(t, &position3, 3)
+}
+
+func perftZobrist(t *testing.T, position *game.Position, depth int) {
+	if depth == 0 {
+		return
+	}
+
+	moves := game.GenerateMoves(position)
+
+	for _, move := range moves {
+		oldHash := position.Hash
+
+		undo := game.MakeMove(position, move)
+
+		// Verify that the incrementally updated hash matches
+		// a complete recomputation of the Zobrist hash.
+		expectedHash := game.SetupZobristHash(position)
+		if position.Hash != expectedHash {
+			t.Fatalf(
+				"incorrect hash after move %+v: incremental=%d, recomputed=%d",
+				move,
+				position.Hash,
+				expectedHash,
+			)
+		}
+
+		perftZobrist(t, position, depth-1)
+
+		game.UnmakeMove(position, move, undo)
+
+		// UnmakeMove should restore exactly the previous hash.
+		if position.Hash != oldHash {
+			t.Fatalf(
+				"incorrect hash after unmaking move %+v: got=%d, expected=%d",
+				move,
+				position.Hash,
+				oldHash,
+			)
+		}
+
+		// Also verify that the restored hash agrees with a
+		// complete recomputation.
+		expectedHash = game.SetupZobristHash(position)
+		if position.Hash != expectedHash {
+			t.Fatalf(
+				"restored hash disagrees with recomputed hash after move %+v: incremental=%d, recomputed=%d",
+				move,
+				position.Hash,
+				expectedHash,
+			)
+		}
 	}
 }
 

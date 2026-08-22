@@ -28,3 +28,7 @@ Note: This may take a while.
  - https://github.com/Disservin/fastchess for testing
  - implement 50 move rule and 3fold repetition
  - consider refactoring; then release v0.1
+
+
+Version 0.1: No optimizations. 
+    It struggles to generate moves, and for depth 4 fails to produce a move within 100ms

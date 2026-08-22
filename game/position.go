@@ -89,11 +89,17 @@ type Position struct {
 	WhiteKingSquare          Square
 	BlackKingSquare          Square
 	HalfMoveClock            int
-	History                  []uint64 // zobrist hash of occurred moves
+
+	Hash    uint64   // the current position hash
+	History []uint64 // zobrist hash of occurred moves (including current)
 }
 
 func (p *Position) GetCurrentPositionHash() uint64 {
-	return p.History[len(p.History)-1]
+	return p.Hash
+}
+
+func (p *Position) PushHistory(newHash uint64) {
+	p.History = append(p.History, newHash)
 }
 
 func (p *Position) popHistory() {
@@ -161,6 +167,8 @@ type UndoMoveState struct {
 	CastleRights             CastleRights
 	PossibleEnPassantCapture Square
 	OldKingSquare            Square
+	OldHalfMoveClock         int
+	OldHash                  uint64
 }
 
 type Direction struct {

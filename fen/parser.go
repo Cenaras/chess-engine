@@ -11,7 +11,6 @@ const StartingFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
 func LoadFenPosition(fen string) game.Position {
 	position := parseFen(fen)
-	position.History = append(position.History, game.ZobristHash(&position))
 	return position
 }
 
@@ -185,6 +184,7 @@ func parseFen(fen string) game.Position {
 	position.HalfMoveClock = halfMove
 
 	// parts[5]
-
+	position.Hash = game.SetupZobristHash(&position)
+	position.PushHistory(position.Hash)
 	return position
 }

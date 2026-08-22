@@ -397,18 +397,37 @@ func MakeMove(p *Position, move Move) UndoMoveState {
 		CastleRights:             p.CastleRights,
 		PossibleEnPassantCapture: p.PossibleEnPassantCapture,
 		OldKingSquare:            oldKingSquare,
+		OldHalfMoveClock:         p.HalfMoveClock,
+		OldHash:                  p.Hash,
 	}
+
+	// Incrementally update the hash as we are making the move
+	newHash := p.Hash
 
 	// Move pieces around
 	p.SetPieceAt(movingPiece, to)
 	p.SetPieceAt(NONE, from)
 
+	// Remove piece from current square and add to new square in hash
+	newHash ^= Zobrist.Table[from][ZobristPieceIndex(movingPiece.Type(), Piece(movingPiece.Player()))]
+	newHash ^= Zobrist.Table[to][ZobristPieceIndex(movingPiece.Type(), Piece(movingPiece.Player()))]
+
+	// Remove captured piece if any (en-passant capture handled further down)
+	if capturedPiece.Type() != NONE {
+		newHash ^= Zobrist.Table[to][ZobristPieceIndex(capturedPiece.Type(), Piece(capturedPiece.Player()))]
+	}
+
 	if movingPiece.Type() == PAWN || capturedPiece.Type() != NONE {
 		p.HalfMoveClock = 0
+	} else {
+		p.HalfMoveClock++
 	}
 
 	// Update the position state
 	// Clear the en-passant move (will be reset if the move was double pawn)
+	if p.PossibleEnPassantCapture != NO_SQUARE {
+		newHash ^= Zobrist.EnPassantFile[p.PossibleEnPassantCapture%8]
+	}
 	p.PossibleEnPassantCapture = NO_SQUARE
 	switch moveFlag {
 	case DoublePawnPush:
@@ -418,6 +437,7 @@ func MakeMove(p *Position, move Move) UndoMoveState {
 			enPassantCaptureSquare = to + 8
 		}
 		p.PossibleEnPassantCapture = enPassantCaptureSquare
+		newHash ^= Zobrist.EnPassantFile[p.PossibleEnPassantCapture%8]
 	case EnPassantCapture:
 		// if capturing en-passant, remove the piece behind the destination square...
 		// NOTE: UnmakeMove is responsible for reinstating the captured pawn
@@ -425,7 +445,10 @@ func MakeMove(p *Position, move Move) UndoMoveState {
 		if movingPiece.Player() == BLACK.Player() {
 			capturedEnPassantSquare = to + 8
 		}
+		capturedEnPassantPiece := p.GetPieceAt(capturedEnPassantSquare)
 		p.SetPieceAt(NONE, capturedEnPassantSquare)
+		// also remove the en-passant captured piece
+		newHash ^= Zobrist.Table[capturedEnPassantSquare][ZobristPieceIndex(capturedEnPassantPiece.Type(), Piece(capturedEnPassantPiece.Player()))]
 
 	// Move the rook -- king has already moved: (flags are updated below)
 	case KingCastle:
@@ -435,6 +458,9 @@ func MakeMove(p *Position, move Move) UndoMoveState {
 		p.SetPieceAt(rook, rookTo)
 		p.SetPieceAt(NONE, rookFrom)
 
+		newHash ^= Zobrist.Table[rookFrom][ZobristPieceIndex(rook.Type(), Piece(rook.Player()))]
+		newHash ^= Zobrist.Table[rookTo][ZobristPieceIndex(rook.Type(), Piece(rook.Player()))]
+
 	case QueenCastle:
 		rookFrom := to - 2
 		rookTo := to + 1
@@ -442,17 +468,37 @@ func MakeMove(p *Position, move Move) UndoMoveState {
 		p.SetPieceAt(rook, rookTo)
 		p.SetPieceAt(NONE, rookFrom)
 
-	case PromoteBishop:
-		p.SetPieceAt(BISHOP|Piece(movingPiece.Player()), to)
-	case PromoteKnight:
-		p.SetPieceAt(KNIGHT|Piece(movingPiece.Player()), to)
-	case PromoteRook:
-		p.SetPieceAt(ROOK|Piece(movingPiece.Player()), to)
-	case PromoteQueen:
-		p.SetPieceAt(QUEEN|Piece(movingPiece.Player()), to)
+		newHash ^= Zobrist.Table[rookFrom][ZobristPieceIndex(rook.Type(), Piece(rook.Player()))]
+		newHash ^= Zobrist.Table[rookTo][ZobristPieceIndex(rook.Type(), Piece(rook.Player()))]
+
+	// For every case, we should remove the pawn from the hash
+	case PromoteBishop, PromoteKnight, PromoteRook, PromoteQueen:
+		var promotedType Piece
+
+		switch moveFlag {
+		case PromoteBishop:
+			promotedType = BISHOP
+		case PromoteKnight:
+			promotedType = KNIGHT
+		case PromoteRook:
+			promotedType = ROOK
+		case PromoteQueen:
+			promotedType = QUEEN
+		}
+
+		promotedPiece := promotedType | Piece(movingPiece.Player())
+
+		pawnIdx := ZobristPieceIndex(PAWN, Piece(movingPiece.Player()))
+		promotedIdx := ZobristPieceIndex(promotedType, Piece(movingPiece.Player()))
+
+		newHash ^= Zobrist.Table[to][pawnIdx]
+		newHash ^= Zobrist.Table[to][promotedIdx]
+
+		p.SetPieceAt(promotedPiece, to)
 	}
 
 	// Update castling rights when king/rook moves and track new king position
+	oldCastleRights := p.CastleRights
 	switch movingPiece.Type() {
 	case KING:
 		if movingPiece.Player() == WHITE.Player() {
@@ -496,15 +542,19 @@ func MakeMove(p *Position, move Move) UndoMoveState {
 		}
 	}
 
-	// Flip player to move and increment 50-move rule
+	// Remove old castle-right hash and add new
+	newHash = updateCastleHash(newHash, oldCastleRights)
+	newHash = updateCastleHash(newHash, p.CastleRights)
+
+	// Flip player to move
 	p.PlayerToMove = p.PlayerToMove.Opponent()
-	p.HalfMoveClock++
+	newHash ^= Zobrist.BlackToMove
 
 	// and record the newly reached position in the zobrist table
 	// for 3 fold repetition. This must happen after switching player,
 	// as after making the move, it is black's turn
-	newHash := ZobristHash(p)
-	p.History = append(p.History, newHash)
+	p.Hash = newHash
+	p.PushHistory(newHash)
 	return undoMoveState
 }
 
@@ -562,8 +612,18 @@ func UnmakeMove(p *Position, move Move, undo UndoMoveState) {
 	}
 
 	// Pop last move off the zobrist history
+	p.Hash = undo.OldHash
 	p.popHistory()
 
+	p.HalfMoveClock = undo.OldHalfMoveClock
 	p.PlayerToMove = p.PlayerToMove.Opponent()
-	p.HalfMoveClock--
+}
+
+func updateCastleHash(hash uint64, rights CastleRights) uint64 {
+	for i := range 4 {
+		if rights&(1<<i) != 0 {
+			hash ^= Zobrist.Castling[i]
+		}
+	}
+	return hash
 }

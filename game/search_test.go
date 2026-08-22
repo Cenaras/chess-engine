@@ -1,10 +1,13 @@
 package game_test
 
 // LLM GENERATED TESTS
+// TODO: Go through this and generate a proper test suite -- these tests are really bad
 
 import (
+	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"chess/fen"
 	"chess/game"
@@ -28,7 +31,8 @@ func requireBestMove(
 
 	position := fen.LoadFenPosition(fenString)
 
-	bestMove := game.FindBestMove(&position, depth)
+	ctx, _ := context.WithTimeout(context.Background(), 1000*time.Millisecond)
+	bestMove := game.FindBestMove(&position, game.SearchOptions{Depth: depth}, ctx)
 
 	expectedFromSquare := searchSquare(expectedFrom)
 	expectedToSquare := searchSquare(expectedTo)
@@ -189,7 +193,7 @@ func TestZobristSameAfterCycle(t *testing.T) {
 		"qrr4k/5Q2/4K3/5B2/8/8/7r/8 w - - 0 1",
 	)
 
-	initialHash := game.ZobristHash(&position)
+	initialHash := game.SetupZobristHash(&position)
 
 	moves := []game.Move{
 		{
@@ -218,7 +222,7 @@ func TestZobristSameAfterCycle(t *testing.T) {
 		game.MakeMove(&position, move)
 	}
 
-	finalHash := game.ZobristHash(&position)
+	finalHash := game.SetupZobristHash(&position)
 
 	if initialHash != finalHash {
 		t.Fatalf(
@@ -260,7 +264,7 @@ func TestThreefoldRepetition(t *testing.T) {
 	// Position has now occurred twice.
 	for _, move := range cycle {
 		game.MakeMove(&position, move)
-		if game.ZobristHash(&position) != position.GetCurrentPositionHash() {
+		if game.SetupZobristHash(&position) != position.GetCurrentPositionHash() {
 			fmt.Print("AAAA")
 		}
 	}
@@ -274,7 +278,7 @@ func TestThreefoldRepetition(t *testing.T) {
 		game.MakeMove(&position, move)
 	}
 
-	val := game.ZobristHash(&position)
+	val := game.SetupZobristHash(&position)
 	fmt.Print(val)
 
 	if !game.IsThreefoldRepetition(&position) {
