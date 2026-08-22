@@ -50,13 +50,17 @@ type SearchOptions struct {
 	MaxSearchTime time.Duration
 }
 
+var nodesSearchedForIteration int = 0
+
 // Find best move in the current position. This is the root of our search.
 func FindBestMove(position *Position, options SearchOptions, ctx context.Context) Move {
+	// TODO: This is sort of messy! We do root search and normal search differently?
 	start := time.Now()
 	moves := GenerateMoves(position)
 
 	depth := options.Depth
 	bestScore := -Infinity
+
 	// TODO: May be uninitialized if search is terminated before it is updated
 	var bestMove Move
 	// TODO: Iterative deepening!
@@ -65,14 +69,15 @@ func FindBestMove(position *Position, options SearchOptions, ctx context.Context
 	if depth == 0 {
 		depth = 4
 	}
-
+	nodesSearchedForIteration = 0
 	for _, move := range moves {
 		undo := MakeMove(position, move)
-		childScore, completed := search(position, depth-1, Infinity, -Infinity, ctx)
+		childScore, completed := search(position, depth-1, -Infinity, Infinity, ctx)
 		UnmakeMove(position, move, undo)
 
 		// Search was terminated; quit iterating and report best result so far
 		if !completed {
+			fmt.Println("info search was canelled")
 			break
 		}
 
@@ -86,10 +91,11 @@ func FindBestMove(position *Position, options SearchOptions, ctx context.Context
 	}
 
 	fmt.Printf(
-		"info depth %d score cp %d time %d\n",
+		"info depth %d score cp %d time %d nodes %d\n",
 		depth,
 		bestScore,
 		time.Since(start).Milliseconds(),
+		nodesSearchedForIteration,
 	)
 	return bestMove
 }
@@ -98,6 +104,8 @@ func FindBestMove(position *Position, options SearchOptions, ctx context.Context
 // If the search is terminated, we report the best score that was fully
 // evaluated
 func search(position *Position, depth int, alpha int, beta int, ctx context.Context) (int, bool) {
+	nodesSearchedForIteration++
+
 	// Check for terminal draw rules
 	if IsThreefoldRepetition(position) {
 		return 0, true
@@ -130,7 +138,7 @@ func search(position *Position, depth int, alpha int, beta int, ctx context.Cont
 
 		undo := MakeMove(position, move)
 		// See above explanation for why the sign is negative
-		childScore, completed := search(position, depth-1, alpha, beta, ctx)
+		childScore, completed := search(position, depth-1, -beta, -alpha, ctx)
 		UnmakeMove(position, move, undo)
 
 		if !completed {

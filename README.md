@@ -32,3 +32,10 @@ Note: This may take a while.
 
 Version 0.1: No optimizations. 
     It struggles to generate moves, and for depth 4 fails to produce a move within 100ms
+
+
+AlphaBeta: Added alpha-beta pruning
+IncZobrist: Add incremental zobrist
+
+TODO: Write a script or something to experiment with these.
+Make sure to keep one version of each in the build directory

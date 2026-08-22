@@ -60,7 +60,7 @@
     },
     "config_name": "config.json",
     "output": 0,
-    "seed": 9277004162484199958,
+    "seed": 9839540910801957202,
     "variant": 0,
     "type": 0,
     "gauntlet_seeds": 1,
@@ -69,7 +69,7 @@
     "wait": 0,
     "autosaveinterval": 20,
     "games": 2,
-    "rounds": 2,
+    "rounds": 100,
     "concurrency": 1,
     "force_concurrency": false,
     "recover": false,
@@ -89,9 +89,9 @@
     },
     "engines": [
         {
-            "name": "RandomEngine",
+            "name": "AlphaBetaFixed",
             "dir": "",
-            "cmd": ".\\build\\random.exe",
+            "cmd": ".\\AAAA.exe",
             "args": "",
             "restart": false,
             "options": [],
@@ -109,9 +109,9 @@
             "variant": 0
         },
         {
-            "name": "AlphaBeta",
+            "name": "Zobrist",
             "dir": "",
-            "cmd": ".\\build\\alpha-beta.exe",
+            "cmd": ".\\build\\inczobrist.exe",
             "args": "",
             "restart": false,
             "options": [],
@@ -130,16 +130,16 @@
         }
     ],
     "stats": {
-        "RandomEngine vs AlphaBeta": {
+        "AlphaBetaFixed vs Zobrist": {
             "wins": 0,
-            "losses": 4,
+            "losses": 0,
             "draws": 0,
             "penta_WW": 0,
             "penta_WD": 0,
             "penta_WL": 0,
             "penta_DD": 0,
             "penta_LD": 0,
-            "penta_LL": 2
+            "penta_LL": 0
         }
     }
 }
