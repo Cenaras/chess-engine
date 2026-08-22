@@ -21,57 +21,83 @@ var nodesSearchedForIteration int = 0
 
 // Find best move in the current position. This is the root of our search.
 func FindBestMove(position *Position, options SearchOptions, ctx context.Context) Move {
-	// TODO: This is sort of messy! We do root search and normal search differently?
 	start := time.Now()
+	maxDepth := options.Depth
+	if maxDepth == 0 {
+		// If no max depth, keep searching until time limit
+		maxDepth = Infinity
+	}
 	moves := GenerateMoves(position)
 
-	depth := options.Depth
-	bestScore := -Infinity
-
-	// TODO: May be uninitialized if search is terminated before it is updated
 	var bestMove Move
-	// TODO: Iterative deepening!
-	// For now, if depth is 0 it just means "keep going until time limit"
-	// as Time limit isn't supplied -- always assume 4...
-	if depth == 0 {
-		depth = 4
-	}
-	nodesSearchedForIteration = 0
-	for _, move := range moves {
-		undo := MakeMove(position, move)
-		childScore, completed := search(position, depth-1, -Infinity, Infinity, ctx)
-		UnmakeMove(position, move, undo)
+	// Iteratively search the root to increasing depths, starting at depth 1
+	for iteration := 1; iteration <= maxDepth; iteration++ {
+		nodesSearchedForIteration = 0
+		// Alpha is the bets score the root has proved it can achieve so far.
+		// Beta is +Infinity, as the root has no parent, imposing an upper bound.
+		// Intuitively, we search root move A fully and this gives a score +3.
+		// When looking for good moves for MAX from root move B, we should stop if MIN finds a move
+		// with score <= 3. Why? Because MAX would never pick root move B, since it would give worse eval.
+		alpha := -Infinity // reset every iteration; lower/upper bounds aren't reliable when depth increases.
+		beta := Infinity
 
-		// Search was terminated; quit iterating and report best result so far
-		if !completed {
-			fmt.Println("info search was canelled")
-			break
+		var bestMoveForIteration Move
+		bestScoreForIteration := -Infinity
+		// Consider ever possible move
+		for _, move := range moves {
+			undo := MakeMove(position, move)
+			childScore, completed := search(position, iteration-1, -beta, -alpha, ctx)
+			UnmakeMove(position, move, undo)
+
+			// When search is terminated, return the best move we've seen for this depth.
+			if !completed {
+				return bestMove
+			}
+			// Update best move.
+			scoreForIteration := -childScore
+			if scoreForIteration > bestScoreForIteration {
+				bestMoveForIteration = move
+				bestScoreForIteration = scoreForIteration
+			}
+			// Update alpha as the best score so far from other branch
+			if scoreForIteration > alpha {
+				alpha = scoreForIteration
+			}
 		}
-
-		score := -childScore
-
-		// At this point we know that the previous search was completed.
-		if score > bestScore {
-			bestScore = score
-			bestMove = move
-		}
+		// Once the iteration completed, update the currently found best move for this
+		// terminated iteration
+		bestMove = bestMoveForIteration
+		fmt.Printf(
+			"info depth %d score cp %d time %d nodes %d\n",
+			iteration,
+			bestScoreForIteration,
+			time.Since(start).Milliseconds(),
+			nodesSearchedForIteration,
+		)
 	}
-
-	fmt.Printf(
-		"info depth %d score cp %d time %d nodes %d\n",
-		depth,
-		bestScore,
-		time.Since(start).Milliseconds(),
-		nodesSearchedForIteration,
-	)
 	return bestMove
 }
 
 // Simple implementation of NegaMax search
-// If the search is terminated, we report the best score that was fully
-// evaluated
+// If the search is terminated, we report the best score that was fully evaluated.
+/*
+	Alpha: a lower bound on the score MAX can already guarantee.
+	If a MIN node finds a reply with value <= alpha, this branch
+	cannot improve MAX's result, so the remaining replies can be pruned.
+
+	Beta: an upper bound on the score MIN can already guarantee MAX will get.
+	If a MAX node finds a continuation with value >= beta, MIN would
+	never choose the ancestor branch leading here, so the remaining
+	continuations can be pruned.
+*/
 func search(position *Position, depth int, alpha int, beta int, ctx context.Context) (int, bool) {
 	nodesSearchedForIteration++
+
+	// Search was termianted before we saw the final leaves.
+	// Report that we cannot trust this evaluation.
+	if ctx.Err() != nil {
+		return 0, false
+	}
 
 	// Check for terminal draw rules
 	if IsThreefoldRepetition(position) {
@@ -97,12 +123,6 @@ func search(position *Position, depth int, alpha int, beta int, ctx context.Cont
 	bestScore := -Infinity
 
 	for _, move := range moves {
-		// Search was termianted before we saw the final leaves.
-		// Report that we cannot trust this evaluation.
-		if ctx.Err() != nil {
-			return 0, false
-		}
-
 		undo := MakeMove(position, move)
 		// See above explanation for why the sign is negative
 		childScore, completed := search(position, depth-1, -beta, -alpha, ctx)
@@ -117,10 +137,13 @@ func search(position *Position, depth int, alpha int, beta int, ctx context.Cont
 		score := -childScore
 		if score > bestScore {
 			bestScore = score
-			if score > alpha {
-				alpha = score
-			}
 		}
+		// Tighten lower bound
+		if score > alpha {
+			alpha = score
+		}
+		// Parent will never choose the line leading to this node.
+		// MIN will prefer the branch leading to beta, so no point looking further
 		if score >= beta {
 			return bestScore, true
 		}

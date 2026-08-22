@@ -16,7 +16,6 @@ import (
 func searchSquare(square string) game.Square {
 	file := int(square[0] - 'a')
 	rank := int(square[1] - '1')
-
 	return game.Square(rank*8 + file)
 }
 
@@ -29,10 +28,7 @@ func requireBestMove(
 ) {
 	t.Helper()
 
-	position := fen.LoadFenPosition(fenString)
-
-	ctx, _ := context.WithTimeout(context.Background(), 1000*time.Millisecond)
-	bestMove := game.FindBestMove(&position, game.SearchOptions{Depth: depth}, ctx)
+	bestMove := getBestMove(t, fenString, depth)
 
 	expectedFromSquare := searchSquare(expectedFrom)
 	expectedToSquare := searchSquare(expectedTo)
@@ -49,6 +45,43 @@ func requireBestMove(
 		)
 	}
 }
+
+func getBestMove(
+	t *testing.T,
+	fenString string,
+	depth int,
+) game.Move {
+	t.Helper()
+	position := fen.LoadFenPosition(fenString)
+
+	ctx, _ := context.WithTimeout(context.Background(), 1000*time.Millisecond)
+	bestMove := game.FindBestMove(&position, game.SearchOptions{Depth: depth}, ctx)
+	return bestMove
+}
+
+func requireNotBestMove(
+	t *testing.T,
+	fenString string,
+	depth int,
+	expectedFrom string,
+	expectedTo string,
+) {
+	t.Helper()
+	bestMove := getBestMove(t, fenString, depth)
+	expectedFromSquare := searchSquare(expectedFrom)
+	expectedToSquare := searchSquare(expectedTo)
+
+	if bestMove.From == expectedFromSquare &&
+		bestMove.To == expectedToSquare {
+
+		t.Fatalf(
+			"expected best move to not be %s -> %s",
+			game.SquareToString(bestMove.From),
+			game.SquareToString(bestMove.To),
+		)
+	}
+}
+
 func TestFindBestMoveWhiteCapturesFreeQueen(t *testing.T) {
 	requireBestMove(
 		t,
@@ -68,13 +101,8 @@ func TestFindBestMoveBlackCapturesFreeQueen(t *testing.T) {
 	)
 }
 func TestFindBestMoveLooksAheadBeforeCapturing(t *testing.T) {
-	requireBestMove(
-		t,
-		"k2q4/3r4/8/7b/8/8/8/K2Q4 w - - 0 1",
-		2,
-		"d1",
-		"h5",
-	)
+	// Ensure we look deeper than one ply
+	requireNotBestMove(t, "k7/8/6p1/7b/8/8/8/K2Q4 w - - 0 1", 2, "d1", "h5")
 }
 func TestFindBestMoveFindsMateInOne(t *testing.T) {
 	requireBestMove(
@@ -163,7 +191,7 @@ func TestWhiteDrawsDeadLostWith50MoveRule(t *testing.T) {
 func TestPawnMoveResets50MoveRule(t *testing.T) {
 	position := fen.LoadFenPosition("k7/8/8/2Q5/6q1/Pr5q/8/K7 w - - 99 50")
 	game.MakeMove(&position, game.Move{From: 16, To: 24, Flag: game.NormalMove})
-	if position.HalfMoveClock != 1 {
+	if position.HalfMoveClock != 0 {
 		t.Fatalf("expected half move clock to reset after pawn move")
 	}
 }
@@ -171,7 +199,7 @@ func TestPawnMoveResets50MoveRule(t *testing.T) {
 func TestCaptureResets50MoveRule(t *testing.T) {
 	position := fen.LoadFenPosition("k7/8/8/8/8/P6q/1r6/K7 w - - 99 50")
 	game.MakeMove(&position, game.Move{From: 0, To: 9, Flag: game.NormalMove})
-	if position.HalfMoveClock != 1 {
+	if position.HalfMoveClock != 0 {
 		t.Fatalf("expected half move clock to reset after pawn move")
 	}
 }
