@@ -25,17 +25,13 @@ Note: This may take a while.
 
 
 # TODO:
- - https://github.com/Disservin/fastchess for testing
- - implement 50 move rule and 3fold repetition
- - consider refactoring; then release v0.1
+ - Refactor + improve code quality
+ - Implement Iterative Deepening to better evaluate search impact
+ - Then better move ordering
+ - More extensive testing: A lot of code isn't testing
+ - Better scripting for benchmark: Ideally python script that runs the fastchess 
+    tournament and parses the result nicely
+ 
 
 
-Version 0.1: No optimizations. 
-    It struggles to generate moves, and for depth 4 fails to produce a move within 100ms
 
-
-AlphaBeta: Added alpha-beta pruning
-IncZobrist: Add incremental zobrist
-
-TODO: Write a script or something to experiment with these.
-Make sure to keep one version of each in the build directory
