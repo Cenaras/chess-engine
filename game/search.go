@@ -28,8 +28,14 @@ func FindBestMove(position *Position, options SearchOptions, ctx context.Context
 		maxDepth = Infinity
 	}
 	moves := GenerateMoves(position)
-
 	var bestMove Move
+	if len(moves) == 0 {
+		return Move{} // Will error
+	}
+
+	// To ensure valid legal move in case of early termination
+	bestMove = moves[0]
+
 	// Iteratively search the root to increasing depths, starting at depth 1
 	for iteration := 1; iteration <= maxDepth; iteration++ {
 		nodesSearchedForIteration = 0

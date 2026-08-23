@@ -46,7 +46,7 @@ func StartUCI() {
 		case string(IsReady):
 			handleIsReady()
 		case string(Quit):
-			handleQuit()
+			return
 
 		}
 	}
@@ -99,7 +99,7 @@ func handleGo(input string) {
 	options := parseGoCommand(input)
 
 	// TODO: more/less time / calulate time based on the remainind time
-	var searchTime = 1000 * time.Millisecond
+	var searchTime = 250 * time.Millisecond
 
 	// create a cancel context, to end the seach.
 	ctx, cancel := context.WithTimeout(context.Background(), searchTime)
@@ -267,10 +267,4 @@ func AlgebraicToSquare(s string) (game.Square, error) {
 		int(rank-'1'),
 		int(file-'a'),
 	), nil
-}
-func handleQuit() {
-	// If the
-	if engine.cancelSearch != nil {
-		engine.cancelSearch()
-	}
 }
