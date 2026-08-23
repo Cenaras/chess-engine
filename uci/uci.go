@@ -46,7 +46,7 @@ func StartUCI() {
 		case string(IsReady):
 			handleIsReady()
 		case string(Quit):
-			handleQuit()
+			return
 
 		}
 	}
@@ -99,7 +99,7 @@ func handleGo(input string) {
 	options := parseGoCommand(input)
 
 	// TODO: more/less time / calulate time based on the remainind time
-	var searchTime = 1000 * time.Millisecond
+	var searchTime = 250 * time.Millisecond
 
 	// create a cancel context, to end the seach.
 	ctx, cancel := context.WithTimeout(context.Background(), searchTime)
@@ -113,7 +113,7 @@ func handleGo(input string) {
 	go func() {
 		defer cancel()
 		bestMove := game.FindBestMove(&position, options, ctx)
-		notation := MoveToAlgebraic(bestMove)
+		notation := game.MoveToAlgebraic(bestMove)
 		fmt.Printf("bestmove %s\n", notation)
 	}()
 }
@@ -166,12 +166,12 @@ func FindMoveFromUCI(position *game.Position, notation string) (game.Move, error
 		return game.Move{}, fmt.Errorf("invalid UCI move %q", notation)
 	}
 
-	from, errFrom := AlgebraicToSquare(notation[0:2])
+	from, errFrom := game.AlgebraicToSquare(notation[0:2])
 	if errFrom != nil {
 		return game.Move{}, errFrom
 	}
 
-	to, errTo := AlgebraicToSquare(notation[2:4])
+	to, errTo := game.AlgebraicToSquare(notation[2:4])
 	if errTo != nil {
 		return game.Move{}, errTo
 	}
@@ -222,55 +222,5 @@ func promotionMatches(flag game.MoveFlag, promotion byte) bool {
 		return flag == game.PromoteQueen
 	default:
 		return false
-	}
-}
-
-func MoveToAlgebraic(move game.Move) string {
-	fromRank, fromFile := game.SquareToRankFile(move.From)
-	toRank, toFile := game.SquareToRankFile(move.To)
-
-	notation := fmt.Sprintf(
-		"%c%c%c%c",
-		'a'+fromFile,
-		'1'+fromRank,
-		'a'+toFile,
-		'1'+toRank,
-	)
-
-	switch move.Flag {
-	case game.PromoteKnight:
-		notation += "n"
-	case game.PromoteBishop:
-		notation += "b"
-	case game.PromoteRook:
-		notation += "r"
-	case game.PromoteQueen:
-		notation += "q"
-	}
-
-	return notation
-}
-
-func AlgebraicToSquare(s string) (game.Square, error) {
-	if len(s) != 2 {
-		return game.NO_SQUARE, fmt.Errorf("invalid square: %q", s)
-	}
-
-	file := s[0]
-	rank := s[1]
-
-	if file < 'a' || file > 'h' || rank < '1' || rank > '8' {
-		return game.NO_SQUARE, fmt.Errorf("invalid square: %q", s)
-	}
-
-	return game.RankFileToSquare(
-		int(rank-'1'),
-		int(file-'a'),
-	), nil
-}
-func handleQuit() {
-	// If the
-	if engine.cancelSearch != nil {
-		engine.cancelSearch()
 	}
 }
