@@ -7,7 +7,8 @@ const rookValue int = 500
 const queenValue int = 900
 
 const (
-	Infinity = 100_000_000
+	Infinity  = 100_000_000
+	MateScore = 100_000
 )
 
 // Due to limited depth + evaluation only considering piece count / position

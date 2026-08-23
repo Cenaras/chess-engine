@@ -35,3 +35,6 @@ Note: This may take a while.
 
 
 
+BUG WITH THIS POSITION:
+position fen 3rk3/1p3p2/2p3p1/4p3/4P2P/pPPr4/P2KNq2/3R3R w - - 0 39
+We return a null move

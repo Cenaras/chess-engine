@@ -2,22 +2,44 @@ import argparse
 import chess
 import chess.engine
 
+DEBUG = True
 
 def play_game(white, black, movetime, game_id):
     board = chess.Board()
+    ply = 0
 
     while not board.is_game_over(claim_draw=True):
         engine = white if board.turn == chess.WHITE else black
+        engine_name = "WHITE" if board.turn == chess.WHITE else "BLACK"
+        if DEBUG:
+            print()
+            print(f"=== Ply {ply + 1} ===")
+            print(f"Engine: {engine_name}")
+            print(f"FEN: {board.fen()}")
+            print(f"Moves: {' '.join(m.uci() for m in board.move_stack)}")
 
-        result = engine.play(
-            board,
-            chess.engine.Limit(time=movetime),
-            game=game_id,
-        )
+
+        try:
+            result = engine.play(
+                board,
+                chess.engine.Limit(time=movetime),
+                game=game_id,
+            )
+        except:
+            print()
+            print("ENGINE FAILED")
+            print(f"Side: {engine_name}")
+            print(f"FEN: {board.fen()}")
+            print(
+                "Moves:",
+                " ".join(m.uci() for m in board.move_stack)
+            )
+            raise
 
         if result.move is None:
             raise RuntimeError("Engine returned no move in a non-terminal position")
 
+        ply += 1
         board.push(result.move)
 
     return board.result(claim_draw=True), board.ply()
