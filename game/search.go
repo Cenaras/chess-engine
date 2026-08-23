@@ -30,13 +30,11 @@ func FindBestMove(position *Position, options SearchOptions, ctx context.Context
 	moves := GenerateMoves(position)
 	var bestMove Move
 	if len(moves) == 0 {
-		fmt.Println("Returning null move -- no move generated?")
 		return Move{} // Will error
 	}
 
 	// To ensure valid legal move in case of early termination
 	bestMove = moves[0]
-	fmt.Printf("bestMove set to %s\n", MoveToAlgebraic(bestMove))
 
 	// Iteratively search the root to increasing depths, starting at depth 1
 	for iteration := 1; iteration <= maxDepth; iteration++ {
@@ -50,7 +48,6 @@ func FindBestMove(position *Position, options SearchOptions, ctx context.Context
 		beta := Infinity
 
 		var bestMoveForIteration Move
-		fmt.Println("bestMoveForIteration reset")
 		bestScoreForIteration := -Infinity
 		// Consider ever possible move
 		for _, move := range moves {
@@ -65,7 +62,6 @@ func FindBestMove(position *Position, options SearchOptions, ctx context.Context
 			// Update best move.
 			scoreForIteration := -childScore
 			if scoreForIteration > bestScoreForIteration {
-				fmt.Println("bestMoveForIteration updated to move")
 				bestMoveForIteration = move
 				bestScoreForIteration = scoreForIteration
 			}
@@ -77,7 +73,6 @@ func FindBestMove(position *Position, options SearchOptions, ctx context.Context
 		// Once the iteration completed, update the currently found best move for this
 		// terminated iteration
 		bestMove = bestMoveForIteration
-		fmt.Printf("bestMove set to %s", MoveToAlgebraic(bestMoveForIteration))
 		fmt.Printf(
 			"info depth %d score cp %d time %d nodes %d\n",
 			iteration,
