@@ -6,6 +6,7 @@ package game_test
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -311,5 +312,43 @@ func TestThreefoldRepetition(t *testing.T) {
 
 	if !game.IsThreefoldRepetition(&position) {
 		t.Fatal("expected threefold repetition")
+	}
+}
+
+func TestFindBestMove_DoesNotReturnNullWhenAllMovesLose(t *testing.T) {
+	const fenString = "3rk3/1p3p2/2p3p1/4p3/4P2P/pPPr4/P2KNq2/3R3R w - - 0 39"
+
+	position := fen.LoadFenPosition(fenString)
+
+	legalMoves := game.GenerateMoves(&position)
+	if len(legalMoves) == 0 {
+		t.Fatal("test position unexpectedly has no legal moves")
+	}
+
+	// Depth 6 was where the original bug manifested:
+	// every root move received the losing mate score, so
+	// bestMoveForIteration was never assigned.
+	move := game.FindBestMove(
+		&position,
+		game.SearchOptions{
+			Depth: 6,
+		},
+		context.Background(),
+	)
+
+	if move == (game.Move{}) {
+		t.Fatal("FindBestMove returned null move despite legal moves existing")
+	}
+
+	// Stronger invariant: the returned move must actually be one
+	// of the legal root moves.
+	found := slices.Contains(legalMoves, move)
+
+	if !found {
+		t.Fatalf(
+			"FindBestMove returned illegal move %v; legal moves: %v",
+			move,
+			legalMoves,
+		)
 	}
 }
