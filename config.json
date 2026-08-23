@@ -60,7 +60,7 @@
     },
     "config_name": "config.json",
     "output": 0,
-    "seed": 7809353278296006086,
+    "seed": 10703464057263101700,
     "variant": 0,
     "type": 0,
     "gauntlet_seeds": 1,
@@ -91,7 +91,7 @@
         {
             "name": "AlphaBetaFixed",
             "dir": "",
-            "cmd": ".\\current.exe",
+            "cmd": ".\\build\\alpha-beta.exe",
             "args": "",
             "restart": false,
             "options": [],
@@ -109,9 +109,9 @@
             "variant": 0
         },
         {
-            "name": "IterativeDeepening",
+            "name": "Random",
             "dir": "",
-            "cmd": ".\\optimized.exe",
+            "cmd": ".\\build\\random.exe",
             "args": "",
             "restart": false,
             "options": [],
@@ -130,11 +130,11 @@
         }
     ],
     "stats": {
-        "AlphaBetaFixed vs IterativeDeepening": {
-            "wins": 0,
+        "AlphaBetaFixed vs Random": {
+            "wins": 200,
             "losses": 0,
             "draws": 0,
-            "penta_WW": 0,
+            "penta_WW": 100,
             "penta_WD": 0,
             "penta_WL": 0,
             "penta_DD": 0,
