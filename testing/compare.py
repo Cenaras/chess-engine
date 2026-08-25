@@ -16,7 +16,7 @@ def play_game(white, black, movetime, game_id):
             print(f"=== Ply {ply + 1} ===")
             print(f"Engine: {engine_name}")
             print(f"FEN: {board.fen()}")
-            print(f"Moves: {' '.join(m.uci() for m in board.move_stack)}")
+            # print(f"Moves: {' '.join(m.uci() for m in board.move_stack)}")
 
 
         try:
