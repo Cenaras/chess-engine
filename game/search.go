@@ -38,6 +38,11 @@ func FindBestMove(position *Position, options SearchOptions, ctx context.Context
 
 	// Iteratively search the root to increasing depths, starting at depth 1
 	for iteration := 1; iteration <= maxDepth; iteration++ {
+		// The best move from last iteration is likely still a good move: so explore that first
+		if iteration > 1 {
+			moveToFront(moves, bestMove)
+		}
+
 		nodesSearchedForIteration = 0
 		// Alpha is the best score the root has proved it can achieve so far.
 		// Beta is +Infinity, as the root has no parent, imposing an upper bound.
@@ -113,11 +118,14 @@ func search(position *Position, depth int, alpha int, beta int, ctx context.Cont
 		return 0, true
 	}
 
+	originalAlpha := alpha
+	originalBeta := beta
+
 	// TODO: Look in TT to see if the current position has a known result
-	ttEntry, success := TT.Lookup(position.Hash)
+	ttEntry, ttFound := TT.Lookup(position.Hash)
 	// We have already seen this position before: Make sure it is at a sufficiently deep depth,
 	// otherwise the result isn't trustworthy
-	if success && ttEntry.Depth >= depth {
+	if ttFound && ttEntry.Depth >= depth {
 		switch ttEntry.NodeType {
 		// if the score is exact, we can definitely use it
 		case EXACT:
@@ -128,11 +136,13 @@ func search(position *Position, depth int, alpha int, beta int, ctx context.Cont
 			if ttEntry.Score >= beta {
 				return ttEntry.Score, true
 			}
+			alpha = max(alpha, ttEntry.Score)
 		// if the score was an upper bound, and we have a better move in alpha already, quit the search
 		case UPPER_BOUND:
-			if ttEntry.Score < alpha {
+			if ttEntry.Score <= alpha {
 				return ttEntry.Score, true
 			}
+			beta = min(beta, ttEntry.Score)
 		}
 		// If none of these were hits, we can use the lower bound and upper bound to tighten
 		// the search window.
@@ -145,9 +155,12 @@ func search(position *Position, depth int, alpha int, beta int, ctx context.Cont
 		//		For instance before: 20 <= value < 80. Now 40 is an upper bound, so
 		//		20 <= trueValue <= 40
 	}
-
-	// TODO: Even here we should look at TT moves with smaller depth.
 	moves := GenerateMoves(position)
+
+	// While we cannot return early since the TT holds a shallower depth, it is still likely a good move
+	if ttFound {
+		moveToFront(moves, ttEntry.BestMove)
+	}
 	// Terminal positions
 	if len(moves) == 0 {
 		if IsKingInCheck(position, position.PlayerToMove) {
@@ -161,7 +174,6 @@ func search(position *Position, depth int, alpha int, beta int, ctx context.Cont
 		return EvaluatePosition(position), true
 	}
 	bestScore := -Infinity
-	originalAlpha := alpha
 	var bestMove Move = moves[0]
 
 	for _, move := range moves {
@@ -194,12 +206,12 @@ func search(position *Position, depth int, alpha int, beta int, ctx context.Cont
 	nodeType := EXACT
 	// If bestScore <= originalAlpha, no move in this search managed to increase our lower bound.
 	// Therefore the true evaluation of the current position is at most bestScore
-	if bestScore < originalAlpha {
+	if bestScore <= originalAlpha {
 		nodeType = UPPER_BOUND
 	}
 	// If bestScore >= beta, we found a move that is at least beta and stopped searching.
 	// The true value may be higher
-	if bestScore >= beta {
+	if bestScore >= originalBeta {
 		nodeType = LOWER_BOUND
 	}
 	ttEntry = TranspositionTableEntry{
@@ -211,6 +223,15 @@ func search(position *Position, depth int, alpha int, beta int, ctx context.Cont
 	}
 	TT.Store(ttEntry)
 	return bestScore, true
+}
+
+func moveToFront(moves []Move, move Move) {
+	for i := range moves {
+		if moves[i] == move {
+			moves[0], moves[i] = moves[i], moves[0]
+			return
+		}
+	}
 }
 
 func IsThreefoldRepetition(position *Position) bool {

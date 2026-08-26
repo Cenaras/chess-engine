@@ -15,13 +15,15 @@ def load_openings(path):
     openings = []
 
     for entry in data:
-        uci = entry.get("uci", "").strip()
-        if not uci:
+        moves = entry.get("moves", [])
+
+        if not moves:
             continue
 
         openings.append({
             "name": entry.get("name", ""),
-            "moves": uci.split(),
+            "moves": moves,
+            "evaluation_cp": entry.get("evaluation_cp"),
         })
 
     return openings
