@@ -4,3 +4,5 @@ Version 0.1: No optimizations.
 AlphaBeta: Uses Alpha-Beta search optimization
 
 AlphaBeta vs Random: 200W 0D 0L
+
+AlphaBeta vs Iterative Deepening + Transposition Table: 141.5, 258.5
