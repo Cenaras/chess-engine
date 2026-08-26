@@ -15,13 +15,15 @@ def load_openings(path):
     openings = []
 
     for entry in data:
-        uci = entry.get("uci", "").strip()
-        if not uci:
+        moves = entry.get("moves", [])
+
+        if not moves:
             continue
 
         openings.append({
             "name": entry.get("name", ""),
-            "moves": uci.split(),
+            "moves": moves,
+            "evaluation_cp": entry.get("evaluation_cp"),
         })
 
     return openings
@@ -56,7 +58,7 @@ def play_game(white, black, movetime, game_id, opening):
             print(f"=== Ply {board.ply() + 1} ===")
             print(f"Engine: {engine_name}")
             print(f"FEN: {board.fen()}")
-            print(f"Moves: {' '.join(m.uci() for m in board.move_stack)}")
+            # print(f"Moves: {' '.join(m.uci() for m in board.move_stack)}")
 
         try:
             result = engine.play(

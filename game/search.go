@@ -38,8 +38,13 @@ func FindBestMove(position *Position, options SearchOptions, ctx context.Context
 
 	// Iteratively search the root to increasing depths, starting at depth 1
 	for iteration := 1; iteration <= maxDepth; iteration++ {
+		// The best move from last iteration is likely still a good move: so explore that first
+		if iteration > 1 {
+			moveToFront(moves, bestMove)
+		}
+
 		nodesSearchedForIteration = 0
-		// Alpha is the bets score the root has proved it can achieve so far.
+		// Alpha is the best score the root has proved it can achieve so far.
 		// Beta is +Infinity, as the root has no parent, imposing an upper bound.
 		// Intuitively, we search root move A fully and this gives a score +3.
 		// When looking for good moves for MAX from root move B, we should stop if MIN finds a move
@@ -113,7 +118,49 @@ func search(position *Position, depth int, alpha int, beta int, ctx context.Cont
 		return 0, true
 	}
 
+	originalAlpha := alpha
+	originalBeta := beta
+
+	// TODO: Look in TT to see if the current position has a known result
+	ttEntry, ttFound := TT.Lookup(position.Hash)
+	// We have already seen this position before: Make sure it is at a sufficiently deep depth,
+	// otherwise the result isn't trustworthy
+	if ttFound && ttEntry.Depth >= depth {
+		switch ttEntry.NodeType {
+		// if the score is exact, we can definitely use it
+		case EXACT:
+			return ttEntry.Score, true
+		// if the score was a lower bound on the position value, and that lower bound is greated than beta,
+		// our opponent will never pick this move, so don't continue the search
+		case LOWER_BOUND:
+			if ttEntry.Score >= beta {
+				return ttEntry.Score, true
+			}
+			alpha = max(alpha, ttEntry.Score)
+		// if the score was an upper bound, and we have a better move in alpha already, quit the search
+		case UPPER_BOUND:
+			if ttEntry.Score <= alpha {
+				return ttEntry.Score, true
+			}
+			beta = min(beta, ttEntry.Score)
+		}
+		// If none of these were hits, we can use the lower bound and upper bound to tighten
+		// the search window.
+		// Say we have alpha = 20, beta = 80, and we found LOWER_BOUND = 40
+		// We cannot report any score, since it *may* be 50, 100, 10000
+		// However, we now know that we have another move that gives us a score of 40, so we can
+		// tighten alpha and beta:
+		// - If the value is a LOWER_BOUND smaller than beta, then our opponent will still consider this move, but is is better than alpha, so it is a new lower bound
+		// - If the value is an UPPER_BOUND greater than alpha, then we can tighten beta with it
+		//		For instance before: 20 <= value < 80. Now 40 is an upper bound, so
+		//		20 <= trueValue <= 40
+	}
 	moves := GenerateMoves(position)
+
+	// While we cannot return early since the TT holds a shallower depth, it is still likely a good move
+	if ttFound {
+		moveToFront(moves, ttEntry.BestMove)
+	}
 	// Terminal positions
 	if len(moves) == 0 {
 		if IsKingInCheck(position, position.PlayerToMove) {
@@ -127,6 +174,7 @@ func search(position *Position, depth int, alpha int, beta int, ctx context.Cont
 		return EvaluatePosition(position), true
 	}
 	bestScore := -Infinity
+	var bestMove Move = moves[0]
 
 	for _, move := range moves {
 		undo := MakeMove(position, move)
@@ -143,18 +191,47 @@ func search(position *Position, depth int, alpha int, beta int, ctx context.Cont
 		score := -childScore
 		if score > bestScore {
 			bestScore = score
+			bestMove = move
 		}
 		// Tighten lower bound
 		if score > alpha {
 			alpha = score
 		}
 		// Parent will never choose the line leading to this node.
-		// MIN will prefer the branch leading to beta, so no point looking further
+		// MIN will prefer the branch leading to beta, so no point looking at further positions
 		if score >= beta {
-			return bestScore, true
+			break
 		}
 	}
+	nodeType := EXACT
+	// If bestScore <= originalAlpha, no move in this search managed to increase our lower bound.
+	// Therefore the true evaluation of the current position is at most bestScore
+	if bestScore <= originalAlpha {
+		nodeType = UPPER_BOUND
+	}
+	// If bestScore >= beta, we found a move that is at least beta and stopped searching.
+	// The true value may be higher
+	if bestScore >= originalBeta {
+		nodeType = LOWER_BOUND
+	}
+	ttEntry = TranspositionTableEntry{
+		Hash:     position.Hash,
+		BestMove: bestMove,
+		Depth:    depth,
+		Score:    bestScore,
+		NodeType: nodeType,
+	}
+	TT.Store(ttEntry)
 	return bestScore, true
+}
+
+func moveToFront(moves []Move, move Move) {
+	for i := range moves {
+		if moves[i] == move {
+			moves[0], moves[i] = moves[i], moves[0]
+			return
+		}
+	}
 }
 
 func IsThreefoldRepetition(position *Position) bool {
