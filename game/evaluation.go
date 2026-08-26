@@ -42,27 +42,18 @@ func getMaterialCount(position *Position) int {
 
 	for square := range TOTAL_SQUARES {
 		piece := position.GetPieceAt(Square(square))
-		pieceType := piece.Type()
+		if piece.Type() == NONE {
+			continue
+		}
 
 		sign := 1
 		if piece.Player() == BLACK.Player() {
 			sign = -1
 		}
 
-		switch pieceType {
-		case PAWN:
-			score += pawnValue * sign
-		case KNIGHT:
-			score += knightValue * sign
-		case BISHOP:
-			score += bishopValue * sign
-		case ROOK:
-			score += rookValue * sign
-		case QUEEN:
-			score += queenValue * sign
-		}
+		pieceScore := GetPieceScore(piece) * sign
+		score += pieceScore
 	}
-
 	return score
 }
 
@@ -91,4 +82,25 @@ func evaluatePieceTables(position *Position) int {
 		}
 	}
 	return score
+}
+
+func GetPieceScore(piece Piece) int {
+	pieceType := piece.Type()
+	if piece.Type() == NONE {
+		panic("GetPieceScore should not be called on a NONE piece")
+	}
+	switch pieceType {
+	case PAWN:
+		return pawnValue
+	case KNIGHT:
+		return knightValue
+	case BISHOP:
+		return bishopValue
+	case ROOK:
+		return rookValue
+	case QUEEN:
+		return queenValue
+	}
+	// The King's value is not relevant, since he can never be captured
+	return 0
 }

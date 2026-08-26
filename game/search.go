@@ -1,8 +1,10 @@
 package game
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"slices"
 	"time"
 )
 
@@ -27,14 +29,17 @@ func FindBestMove(position *Position, options SearchOptions, ctx context.Context
 		// If no max depth, keep searching until time limit
 		maxDepth = Infinity
 	}
+	ttEntry, hasTTMove := TT.Lookup(position.Hash)
+
 	moves := GenerateMoves(position)
+	orderedMoves := OrderMoves(moves, position, hasTTMove, ttEntry.BestMove)
 	var bestMove Move
-	if len(moves) == 0 {
+	if len(orderedMoves) == 0 {
 		return Move{} // Will error
 	}
 
 	// To ensure valid legal move in case of early termination
-	bestMove = moves[0]
+	bestMove = orderedMoves[0]
 
 	// Iteratively search the root to increasing depths, starting at depth 1
 	for iteration := 1; iteration <= maxDepth; iteration++ {
@@ -44,18 +49,14 @@ func FindBestMove(position *Position, options SearchOptions, ctx context.Context
 		}
 
 		nodesSearchedForIteration = 0
-		// Alpha is the best score the root has proved it can achieve so far.
-		// Beta is +Infinity, as the root has no parent, imposing an upper bound.
-		// Intuitively, we search root move A fully and this gives a score +3.
-		// When looking for good moves for MAX from root move B, we should stop if MIN finds a move
-		// with score <= 3. Why? Because MAX would never pick root move B, since it would give worse eval.
-		alpha := -Infinity // reset every iteration; lower/upper bounds aren't reliable when depth increases.
+		// lower/upper bounds are reset per iteration
+		alpha := -Infinity
 		beta := Infinity
 
 		var bestMoveForIteration Move
 		bestScoreForIteration := -Infinity
 		// Consider ever possible move
-		for _, move := range moves {
+		for _, move := range orderedMoves {
 			undo := MakeMove(position, move)
 			childScore, completed := search(position, iteration-1, -beta, -alpha, ctx)
 			UnmakeMove(position, move, undo)
@@ -133,17 +134,16 @@ func search(position *Position, depth int, alpha int, beta int, ctx context.Cont
 		// if the score was a lower bound on the position value, and that lower bound is greated than beta,
 		// our opponent will never pick this move, so don't continue the search
 		case LOWER_BOUND:
-			if ttEntry.Score >= beta {
-				return ttEntry.Score, true
-			}
 			alpha = max(alpha, ttEntry.Score)
 		// if the score was an upper bound, and we have a better move in alpha already, quit the search
 		case UPPER_BOUND:
-			if ttEntry.Score <= alpha {
-				return ttEntry.Score, true
-			}
 			beta = min(beta, ttEntry.Score)
 		}
+
+		if alpha >= beta {
+			return ttEntry.Score, true
+		}
+
 		// If none of these were hits, we can use the lower bound and upper bound to tighten
 		// the search window.
 		// Say we have alpha = 20, beta = 80, and we found LOWER_BOUND = 40
@@ -155,14 +155,14 @@ func search(position *Position, depth int, alpha int, beta int, ctx context.Cont
 		//		For instance before: 20 <= value < 80. Now 40 is an upper bound, so
 		//		20 <= trueValue <= 40
 	}
-	moves := GenerateMoves(position)
 
-	// While we cannot return early since the TT holds a shallower depth, it is still likely a good move
-	if ttFound {
-		moveToFront(moves, ttEntry.BestMove)
-	}
+	// Order moves based on heuristic
+	moves := GenerateMoves(position)
+	// We can still attempt the best TT move even though the depth was less than what we are currently searching
+	orderedMoves := OrderMoves(moves, position, ttFound, ttEntry.BestMove)
+
 	// Terminal positions
-	if len(moves) == 0 {
+	if len(orderedMoves) == 0 {
 		if IsKingInCheck(position, position.PlayerToMove) {
 			return -MateScore, true // checkmate // TODO: +ply-to-mate
 		}
@@ -174,9 +174,9 @@ func search(position *Position, depth int, alpha int, beta int, ctx context.Cont
 		return EvaluatePosition(position), true
 	}
 	bestScore := -Infinity
-	var bestMove Move = moves[0]
+	var bestMove Move = orderedMoves[0]
 
-	for _, move := range moves {
+	for _, move := range orderedMoves {
 		undo := MakeMove(position, move)
 		// See above explanation for why the sign is negative
 		childScore, completed := search(position, depth-1, -beta, -alpha, ctx)
@@ -194,12 +194,10 @@ func search(position *Position, depth int, alpha int, beta int, ctx context.Cont
 			bestMove = move
 		}
 		// Tighten lower bound
-		if score > alpha {
-			alpha = score
-		}
+		alpha = max(alpha, score)
 		// Parent will never choose the line leading to this node.
 		// MIN will prefer the branch leading to beta, so no point looking at further positions
-		if score >= beta {
+		if alpha >= beta {
 			break
 		}
 	}
@@ -250,4 +248,42 @@ func IsThreefoldRepetition(position *Position) bool {
 		}
 	}
 	return false
+}
+
+// The PV mode from previous will be added to the front in the iterative deepening
+func OrderMoves(legalMoves []Move, position *Position, ttMoveFound bool, ttMove Move) []Move {
+
+	// Ideas for move ordering:
+	// Promotions
+
+	moveScore := func(move Move, ttMove Move) int {
+		// Transposition Table move gets highest priority (PV mode handled by iterative deepening)
+		if ttMoveFound && move == ttMove {
+			// highest priority
+			return 1_000_000
+		}
+
+		movingPiece := position.GetPieceAt(move.From)
+		capturedPiece := position.GetPieceAt(move.To)
+		if capturedPiece.Type() == NONE {
+			// down-prioritize non-capture moves for now
+			return -1
+		}
+		gain := GetPieceScore(capturedPiece) - GetPieceScore(movingPiece)
+
+		// Evaluate moves based on material gain
+		if gain >= 0 {
+			return 100_000 + gain
+		}
+		return 0
+	}
+
+	// Sort moves based on their assigned score
+	slices.SortStableFunc(legalMoves, func(a, b Move) int {
+		return cmp.Compare(
+			moveScore(b, ttMove),
+			moveScore(a, ttMove),
+		)
+	})
+	return legalMoves
 }
