@@ -9,6 +9,11 @@ var bishopDirections = []Direction{
 	{1, -1}, {1, 1}, {-1, 1}, {-1, -1},
 }
 
+// TODO: Next step is to precompute the squares for sliding pieces for every single
+// Direction. Then instead of calling MoveDirection, we use the precomputed info
+
+//
+
 // Precomputes, for each square on the board, all possible target squares
 // according to the direction offsets
 func precomputeMoves(dirOffsets []Direction) [TOTAL_SQUARES][]Square {
