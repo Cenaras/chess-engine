@@ -1,11 +1,18 @@
 import argparse
+import logging
 import json
 import random
 
 import chess
 import chess.engine
 
-DEBUG = True
+DEBUG = False
+VERBOSE = True
+
+class EngineOutputFilter(logging.Filter):
+    def filter(self, record):
+        # python-chess marks engine output with >>
+        return ">>" in record.getMessage()
 
 
 def load_openings(path):
@@ -45,7 +52,7 @@ def setup_board_with_opening(opening):
     return board
 
 
-def play_game(white, black, movetime, game_id, opening):
+def play_game(white, black, movetime, game_id, opening, game_number):
     board = setup_board_with_opening(opening)
     starting_ply = board.ply()
 
@@ -55,10 +62,22 @@ def play_game(white, black, movetime, game_id, opening):
 
         if DEBUG:
             print()
-            print(f"=== Ply {board.ply() + 1} ===")
+            print(f"=== Ply {board.ply() + 1} (Game {game_number}) ===")
             print(f"Engine: {engine_name}")
             print(f"FEN: {board.fen()}")
             # print(f"Moves: {' '.join(m.uci() for m in board.move_stack)}")
+
+        if VERBOSE:
+            engine_id = engine.id.get("name")
+            print(
+                f"\n--- {engine_name} | {engine_id} | "
+                f"ply {board.ply() + 1} ---")
+            logger = logging.getLogger("chess.engine")
+            logger.setLevel(logging.DEBUG)
+            handler = logging.StreamHandler()
+            handler.setLevel(logging.DEBUG)
+            handler.addFilter(EngineOutputFilter())
+            logger.addHandler(handler)
 
         try:
             result = engine.play(
@@ -184,6 +203,7 @@ def main():
                 movetime=movetime,
                 game_id=game_id,
                 opening=opening,
+                game_number=game_number,
             )
 
             update_score(
@@ -212,6 +232,7 @@ def main():
                 movetime=movetime,
                 game_id=game_id,
                 opening=opening,
+                game_number=game_number
             )
 
             update_score(

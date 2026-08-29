@@ -31,8 +31,7 @@ func FindBestMove(position *Position, options SearchOptions, ctx context.Context
 	}
 	ttEntry, hasTTMove := TT.Lookup(position.Hash)
 
-	moves := GenerateMoves(position)
-	orderedMoves := OrderMoves(moves, position, hasTTMove, ttEntry.BestMove)
+	orderedMoves := OrderMoves(GenerateMoves(position), position, hasTTMove, ttEntry.BestMove)
 	var bestMove Move
 	if len(orderedMoves) == 0 {
 		return Move{} // Will error
@@ -45,7 +44,7 @@ func FindBestMove(position *Position, options SearchOptions, ctx context.Context
 	for iteration := 1; iteration <= maxDepth; iteration++ {
 		// The best move from last iteration is likely still a good move: so explore that first
 		if iteration > 1 {
-			moveToFront(moves, bestMove)
+			moveToFront(orderedMoves, bestMove)
 		}
 
 		nodesSearchedForIteration = 0
@@ -63,6 +62,15 @@ func FindBestMove(position *Position, options SearchOptions, ctx context.Context
 
 			// When search is terminated, return the best move we've seen for this depth.
 			if !completed {
+				if !completed {
+					fmt.Printf(
+						"info string aborted depth %d nodes %d time %d\n",
+						iteration,
+						nodesSearchedForIteration,
+						time.Since(start).Milliseconds(),
+					)
+					return bestMove
+				}
 				return bestMove
 			}
 			// Update best move.
@@ -90,18 +98,7 @@ func FindBestMove(position *Position, options SearchOptions, ctx context.Context
 	return bestMove
 }
 
-// Simple implementation of NegaMax search
-// If the search is terminated, we report the best score that was fully evaluated.
-/*
-	Alpha: a lower bound on the score MAX can already guarantee.
-	If a MIN node finds a reply with value <= alpha, this branch
-	cannot improve MAX's result, so the remaining replies can be pruned.
-
-	Beta: an upper bound on the score MIN can already guarantee MAX will get.
-	If a MAX node finds a continuation with value >= beta, MIN would
-	never choose the ancestor branch leading here, so the remaining
-	continuations can be pruned.
-*/
+// NegaMax with alpha-beta pruning
 func search(position *Position, depth int, alpha int, beta int, ctx context.Context) (int, bool) {
 	nodesSearchedForIteration++
 
@@ -134,35 +131,19 @@ func search(position *Position, depth int, alpha int, beta int, ctx context.Cont
 		// if the score was a lower bound on the position value, and that lower bound is greated than beta,
 		// our opponent will never pick this move, so don't continue the search
 		case LOWER_BOUND:
-			alpha = max(alpha, ttEntry.Score)
+			if ttEntry.Score >= beta {
+				return ttEntry.Score, true
+			}
 		// if the score was an upper bound, and we have a better move in alpha already, quit the search
 		case UPPER_BOUND:
-			beta = min(beta, ttEntry.Score)
+			if ttEntry.Score <= alpha {
+				return ttEntry.Score, true
+			}
 		}
-
-		if alpha >= beta {
-			return ttEntry.Score, true
-		}
-
-		// If none of these were hits, we can use the lower bound and upper bound to tighten
-		// the search window.
-		// Say we have alpha = 20, beta = 80, and we found LOWER_BOUND = 40
-		// We cannot report any score, since it *may* be 50, 100, 10000
-		// However, we now know that we have another move that gives us a score of 40, so we can
-		// tighten alpha and beta:
-		// - If the value is a LOWER_BOUND smaller than beta, then our opponent will still consider this move, but is is better than alpha, so it is a new lower bound
-		// - If the value is an UPPER_BOUND greater than alpha, then we can tighten beta with it
-		//		For instance before: 20 <= value < 80. Now 40 is an upper bound, so
-		//		20 <= trueValue <= 40
 	}
-
-	// Order moves based on heuristic
 	moves := GenerateMoves(position)
-	// We can still attempt the best TT move even though the depth was less than what we are currently searching
-	orderedMoves := OrderMoves(moves, position, ttFound, ttEntry.BestMove)
-
 	// Terminal positions
-	if len(orderedMoves) == 0 {
+	if len(moves) == 0 {
 		if IsKingInCheck(position, position.PlayerToMove) {
 			return -MateScore, true // checkmate // TODO: +ply-to-mate
 		}
@@ -173,6 +154,10 @@ func search(position *Position, depth int, alpha int, beta int, ctx context.Cont
 	if depth == 0 {
 		return EvaluatePosition(position), true
 	}
+
+	// Order moves based on heuristic
+	// We can still attempt the best TT move even though the depth was less than what we are currently searching
+	orderedMoves := OrderMoves(moves, position, ttFound, ttEntry.BestMove)
 	bestScore := -Infinity
 	var bestMove Move = orderedMoves[0]
 
@@ -250,32 +235,49 @@ func IsThreefoldRepetition(position *Position) bool {
 	return false
 }
 
-// The PV mode from previous will be added to the front in the iterative deepening
+// Previous iteration's best root move gets first priorirty through iterative deepening
 func OrderMoves(legalMoves []Move, position *Position, ttMoveFound bool, ttMove Move) []Move {
 
-	// Ideas for move ordering:
-	// Promotions
+	// Ideas for move ordering: ...
 
 	moveScore := func(move Move, ttMove Move) int {
+		ttMovePrio := 1_000_000
+		materialGainPrio := 100_000
+		promotionPrio := 500_000
+
 		// Transposition Table move gets highest priority (PV mode handled by iterative deepening)
 		if ttMoveFound && move == ttMove {
 			// highest priority
-			return 1_000_000
+			return ttMovePrio
 		}
 
 		movingPiece := position.GetPieceAt(move.From)
 		capturedPiece := position.GetPieceAt(move.To)
+
+		// Check for promotions
+		rank, _ := SquareToRankFile(move.To)
+		if movingPiece.Player() == WHITE.Player() && rank == int(RANK_8) {
+			return promotionPrio
+		} else if movingPiece.Player() == BLACK.Player() && rank == int(RANK_1) {
+			return promotionPrio
+		}
+
+		// TODO: This is slightly naive -- we don't consider if our capturing piece will be lost as well -- see SEE
+
+		// TODO: En-passant is currently considered a quiet move
 		if capturedPiece.Type() == NONE {
 			// down-prioritize non-capture moves for now
-			return -1
+			return 0
 		}
+
 		gain := GetPieceScore(capturedPiece) - GetPieceScore(movingPiece)
 
 		// Evaluate moves based on material gain
 		if gain >= 0 {
-			return 100_000 + gain
+			return materialGainPrio + gain
 		}
-		return 0
+		// Losing material is bad; but we should prioritize losing as little as possible
+		return -materialGainPrio + gain
 	}
 
 	// Sort moves based on their assigned score

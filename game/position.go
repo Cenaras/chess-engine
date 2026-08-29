@@ -65,7 +65,7 @@ const (
 type File uint8
 
 const (
-	RANK_1 File = iota + 1
+	RANK_1 File = iota
 	RANK_2
 	RANK_3
 	RANK_4
