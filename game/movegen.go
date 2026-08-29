@@ -12,7 +12,8 @@ var bishopDirections = []Direction{
 // TODO: Next step is to precompute the squares for sliding pieces for every single
 // Direction. Then instead of calling MoveDirection, we use the precomputed info
 
-//
+// Then, change to bitboards. And then compute a lot more info about attackers etc
+// and rewrite legal move gen to look at e.g., king safety.
 
 // Precomputes, for each square on the board, all possible target squares
 // according to the direction offsets
