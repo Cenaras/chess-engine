@@ -31,10 +31,3 @@ Note: This may take a while.
  - More extensive testing: A lot of code isn't testing
  - Better scripting for benchmark: Ideally python script that runs the fastchess 
     tournament and parses the result nicely
- 
-
-
-
-BUG WITH THIS POSITION:
-position fen 3rk3/1p3p2/2p3p1/4p3/4P2P/pPPr4/P2KNq2/3R3R w - - 0 39
-We return a null move
